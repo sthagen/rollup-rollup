@@ -10,6 +10,7 @@ import {
 	RollupWarning,
 	SourceDescription,
 	TransformModuleJSON,
+	TransformPluginContext,
 	TransformResult
 } from '../rollup/types';
 import { collapseSourcemap } from './collapseSourcemaps';
@@ -77,11 +78,11 @@ export default function transform(
 	}
 
 	return graph.pluginDriver
-		.hookReduceArg0<any, string>(
+		.hookReduceArg0(
 			'transform',
 			[curSource, id],
 			transformReducer,
-			(pluginContext, plugin) => {
+			(pluginContext, plugin): TransformPluginContext => {
 				curPlugin = plugin;
 				return {
 					...pluginContext,
