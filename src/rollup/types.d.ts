@@ -94,7 +94,7 @@ export interface SourceDescription {
 }
 
 export interface TransformModuleJSON {
-	ast: AcornNode;
+	ast?: AcornNode;
 	code: string;
 	// note if plugins use new this.cache to opt-out auto transform cache
 	customTransformCache: boolean;
@@ -108,6 +108,8 @@ export interface TransformModuleJSON {
 }
 
 export interface ModuleJSON extends TransformModuleJSON {
+	alwaysRemovedCode: [number, number][];
+	ast: AcornNode;
 	dependencies: string[];
 	id: string;
 	transformFiles: EmittedFile[] | undefined;
@@ -164,6 +166,7 @@ export interface PluginContext extends MinimalPluginContext {
 	getModuleInfo: (
 		moduleId: string
 	) => {
+		dynamicallyImportedIds: string[];
 		hasModuleSideEffects: boolean;
 		id: string;
 		importedIds: string[];
@@ -261,7 +264,7 @@ export type ResolveDynamicImportHook = (
 export type ResolveImportMetaHook = (
 	this: PluginContext,
 	prop: string | null,
-	options: { chunkId: string; format: string; moduleId: string }
+	options: { chunkId: string; format: InternalModuleFormat; moduleId: string }
 ) => string | null | undefined;
 
 export type ResolveAssetUrlHook = (
@@ -269,7 +272,7 @@ export type ResolveAssetUrlHook = (
 	options: {
 		assetFileName: string;
 		chunkId: string;
-		format: string;
+		format: InternalModuleFormat;
 		moduleId: string;
 		relativeAssetPath: string;
 	}
@@ -282,7 +285,7 @@ export type ResolveFileUrlHook = (
 		chunkId: string;
 		chunkReferenceId: string | null;
 		fileName: string;
-		format: string;
+		format: InternalModuleFormat;
 		moduleId: string;
 		referenceId: string;
 		relativePath: string;
@@ -316,6 +319,17 @@ export interface OutputBundleWithPlaceholders {
 	[fileName: string]: OutputAsset | OutputChunk | FilePlaceholder;
 }
 
+export interface PluginHooks extends OutputPluginHooks {
+	buildEnd: (this: PluginContext, err?: Error) => Promise<void> | void;
+	buildStart: (this: PluginContext, options: InputOptions) => Promise<void> | void;
+	load: LoadHook;
+	options: (this: MinimalPluginContext, options: InputOptions) => InputOptions | null | undefined;
+	resolveDynamicImport: ResolveDynamicImportHook;
+	resolveId: ResolveIdHook;
+	transform: TransformHook;
+	watchChange: (id: string) => void;
+}
+
 interface OutputPluginHooks {
 	augmentChunkHash: (this: PluginContext, chunk: PreRenderedChunk) => string | void;
 	generateBundle: (
@@ -326,6 +340,15 @@ interface OutputPluginHooks {
 	) => void | Promise<void>;
 	outputOptions: (this: PluginContext, options: OutputOptions) => OutputOptions | null | undefined;
 	renderChunk: RenderChunkHook;
+	renderDynamicImport: (
+		this: PluginContext,
+		options: {
+			customResolution: string | null;
+			format: InternalModuleFormat;
+			moduleId: string;
+			targetModuleId: string | null;
+		}
+	) => { left: string; right: string } | null | undefined;
 	renderError: (this: PluginContext, err?: Error) => Promise<void> | void;
 	renderStart: (
 		this: PluginContext,
@@ -334,24 +357,13 @@ interface OutputPluginHooks {
 	) => Promise<void> | void;
 	/** @deprecated Use `resolveFileUrl` instead */
 	resolveAssetUrl: ResolveAssetUrlHook;
-	resolveDynamicImport: ResolveDynamicImportHook;
 	resolveFileUrl: ResolveFileUrlHook;
+	resolveImportMeta: ResolveImportMetaHook;
 	writeBundle: (
 		this: PluginContext,
 		options: OutputOptions,
 		bundle: OutputBundle
 	) => void | Promise<void>;
-}
-
-export interface PluginHooks extends OutputPluginHooks {
-	buildEnd: (this: PluginContext, err?: Error) => Promise<void> | void;
-	buildStart: (this: PluginContext, options: InputOptions) => Promise<void> | void;
-	load: LoadHook;
-	options: (this: MinimalPluginContext, options: InputOptions) => InputOptions | null | undefined;
-	resolveId: ResolveIdHook;
-	resolveImportMeta: ResolveImportMetaHook;
-	transform: TransformHook;
-	watchChange: (id: string) => void;
 }
 
 export type AsyncPluginHooks =
@@ -373,6 +385,7 @@ export type SyncPluginHooks = Exclude<keyof PluginHooks, AsyncPluginHooks>;
 
 export type FirstPluginHooks =
 	| 'load'
+	| 'renderDynamicImport'
 	| 'resolveAssetUrl'
 	| 'resolveDynamicImport'
 	| 'resolveFileUrl'
@@ -456,17 +469,9 @@ export interface InputOptions {
 	watch?: WatcherOptions;
 }
 
-export type ModuleFormat =
-	| 'amd'
-	| 'cjs'
-	| 'commonjs'
-	| 'es'
-	| 'esm'
-	| 'iife'
-	| 'module'
-	| 'system'
-	| 'systemjs'
-	| 'umd';
+export type InternalModuleFormat = 'amd' | 'cjs' | 'es' | 'iife' | 'system' | 'umd';
+
+export type ModuleFormat = InternalModuleFormat | 'commonjs' | 'esm' | 'module' | 'systemjs';
 
 export type OptionsPaths = Record<string, string> | ((id: string) => string);
 
@@ -481,6 +486,7 @@ export interface OutputOptions {
 	compact?: boolean;
 	// only required for bundle.write
 	dir?: string;
+	/** @deprecated Use the "renderDynamicImport" plugin hook instead. */
 	dynamicImportFunction?: string;
 	entryFileNames?: string;
 	esModule?: boolean;
@@ -490,8 +496,6 @@ export interface OutputOptions {
 	// only required for bundle.write
 	file?: string;
 	footer?: string | (() => string | Promise<string>);
-	// this is optional at the base-level of RollupWatchOptions,
-	// which extends from this interface through config merge
 	format?: ModuleFormat;
 	freeze?: boolean;
 	globals?: GlobalsOption;
@@ -587,6 +591,10 @@ export interface RollupOptions extends InputOptions {
 	output?: OutputOptions | OutputOptions[];
 }
 
+export interface MergedRollupOptions extends InputOptions {
+	output: OutputOptions[];
+}
+
 export function rollup(options: RollupOptions): Promise<RollupBuild>;
 
 export interface ChokidarOptions {
@@ -617,6 +625,7 @@ export interface WatcherOptions {
 	clearScreen?: boolean;
 	exclude?: string[];
 	include?: string[];
+	skipWrite?: boolean;
 }
 
 export interface RollupWatchOptions extends InputOptions {
@@ -664,7 +673,7 @@ export interface RollupWatcher
 	close(): void;
 }
 
-export function watch(configs: RollupWatchOptions[]): RollupWatcher;
+export function watch(config: RollupWatchOptions | RollupWatchOptions[]): RollupWatcher;
 
 interface AcornNode {
 	end: number;

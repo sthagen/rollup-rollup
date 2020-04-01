@@ -381,7 +381,7 @@ You can build the same code for the browser via native ES modules, an AMD loader
 For example, with `-f es` for native modules:
 
 ```
-rollup src/main.js src/main2.js -f esm -d dist
+rollup src/main.js src/main2.js -f es -d dist
 ```
 
 ```html
@@ -408,7 +408,7 @@ And then load either or both entry points in an HTML page as needed:
 
 ```html
 <!doctype html>
-<script src="node_modules/systemjs/dist/system-production.js"></script>
+<script src="node_modules/systemjs/dist/s.min.js"></script>
 <script>
   System.import('./dist/main2.js')
   .then(({ default: main }) => main());

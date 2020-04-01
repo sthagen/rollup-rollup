@@ -1,5 +1,58 @@
 # rollup changelog
 
+## 2.3.2
+*2020-03-31*
+
+### Bug Fixes
+* Only warn but do not fail build when a namespace is called as a function (#3475)
+* Make sure pre-existing sourcemap comments are also removed when rebuilding using the cache (#3476)
+
+### Pull Requests
+* [#3475](https://github.com/rollup/rollup/pull/3475): Call namespace error as a warning (@guybedford)
+* [#3476](https://github.com/rollup/rollup/pull/3476): Store locations for removed comments in cache (@lukastaegert)
+
+## 2.3.1
+*2020-03-30*
+
+### Bug Fixes
+* Do not fail if the config file returns an function returning a Promise (#3472)
+
+### Pull Requests
+* [#3472](https://github.com/rollup/rollup/pull/3472): Fix support for async functions as config (@lukastaegert)
+
+## 2.3.0
+*2020-03-29*
+
+### Features
+* Do not transpile config files with `.mjs` extension in Node 13+ or `.cjs` extension in any Node version and load them appropriately (#3445)
+* Extract helper to load a config file the way rollup does it via `rollup/dist/loadConfigFile` (#3445)
+
+### Bug Fixes
+* Keep watching the config file if an error occurs during initial load in watch node (#3445)
+* Add a helpful error message when using a transpiled config in a repository with "type": "module" (#3445)
+
+### Pull Requests
+* [#3445](https://github.com/rollup/rollup/pull/3445): Support native ESM configs in Node 13, support untranspiled configs (@lukastaegert)
+* [#3468](https://github.com/rollup/rollup/pull/3468): Don't use esm output format alias in the documentation (@vsn4ik)
+
+## 2.2.0
+*2020-03-24*
+
+### Features
+* Add `renderDynamicImport` hook to rewrite dynamic import expressions (#3449)
+* Add information about dynamically imported modules to `this.getModuleInfo` (#3449)
+
+### Bug Fixes
+* Make file emission work with Uin8Array sources when using Rollup in the browser (#3452)
+* Fix types to allow watch to accept an array of configs (#3453)
+* Do not strip `.js` extensions from AMD imports when the import is a user-supplied replacement for a non-resolvable dynamic import target (#3453)
+
+### Pull Requests
+* [#3449](https://github.com/rollup/rollup/pull/3449): Add hook to rewrite dynamic import expressions (@lukastaegert)
+* [#3452](https://github.com/rollup/rollup/pull/3452): Avoid the assumption of Buffer in browser envs (@JoviDeCroock)
+* [#3453](https://github.com/rollup/rollup/pull/3453): fix types since watch accepts single or array config (@lukeed)
+* [#3456](https://github.com/rollup/rollup/pull/3456): fix SystemJS url in tutorial (@guybedford)
+
 ## 2.1.0
 *2020-03-18*
 
@@ -80,7 +133,7 @@
 * Modules that are completely tree-shaken will no longer be listed as part of any chunks in `generateBundle`
 * The `experimentalOptimizeChunks` and `chunkGroupingSize` options have been removed
 * [acorn](https://github.com/acornjs/acorn) plugins can only be used if they accept a passed-in acorn instance instead of importing it themselves. See https://github.com/acornjs/acorn/pull/870#issuecomment-527339830 for what needs to be done to make plugins compatible that do not support this yet (#3391)
-* Emitted chunks now have the TypeScript type `UInt8Array` instead of `Buffer`. A `Buffer` can still be used, though (#3395)
+* Emitted chunks now have the TypeScript type `Uint8Array` instead of `Buffer`. A `Buffer` can still be used, though (#3395)
 * The TypeScript types no longer use ESTree types for AST nodes but a very generic type that does not contain information specific to certain node types (#3395)
 * The signature of the `writeBundle` plugin hook has been changed to match `generateBundle`: The bundle object is now passed as second parameter instead of first and the first parameter is the output options (#3361)
 * The following plugin hooks have been removed:
