@@ -25,10 +25,10 @@ export default async function watch(command: any) {
 	const configFile = command.config ? getConfigPath(command.config) : null;
 
 	onExit(close);
-	process.on('uncaughtException', close);
-	// only listen to stdin if it is a pipe
+	process.on('uncaughtException' as any, close);
 	if (!process.stdin.isTTY) {
 		process.stdin.on('end', close);
+		process.stdin.resume();
 	}
 
 	if (configFile) {
@@ -141,7 +141,7 @@ export default async function watch(command: any) {
 		});
 	}
 
-	function close(err: Error) {
+	function close(code: number | null) {
 		process.removeListener('uncaughtException', close);
 		// removing a non-existent listener is a no-op
 		process.stdin.removeListener('end', close);
@@ -149,9 +149,8 @@ export default async function watch(command: any) {
 		if (watcher) watcher.close();
 		if (configWatcher) configWatcher.close();
 
-		if (err) {
-			stderr(err);
-			process.exit(1);
+		if (code) {
+			process.exit(code);
 		}
 	}
 }

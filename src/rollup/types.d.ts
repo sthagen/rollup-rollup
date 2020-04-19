@@ -440,7 +440,7 @@ export interface TreeshakingOptions {
 
 export type GetManualChunk = (id: string) => string | null | undefined;
 
-export type ExternalOption = string[] | IsExternal;
+export type ExternalOption = (string | RegExp)[] | string | RegExp | IsExternal;
 export type PureModulesOption = boolean | string[] | IsPureModule;
 export type GlobalsOption = { [name: string]: string } | ((name: string) => string);
 export type InputOption = string | string[] | { [entryAlias: string]: string };
@@ -449,7 +449,7 @@ export type ModuleSideEffectsOption = boolean | 'no-external' | string[] | HasMo
 
 export interface InputOptions {
 	acorn?: any;
-	acornInjectPlugins?: Function[];
+	acornInjectPlugins?: Function | Function[];
 	cache?: false | RollupCache;
 	context?: string;
 	experimentalCacheExpiry?: number;
