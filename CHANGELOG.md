@@ -1,5 +1,38 @@
 # rollup changelog
 
+## 2.7.2
+*2020-04-22*
+
+### Bug Fixes
+* Prevent an infinite loop when creating separate manual chunks with circular dependencies (#3510)
+* Do not fail if "super" is used in the definition of a class field (#3511)
+* Throw if a plugin tries to emit a file with an absolute Windows path (#3509)
+
+### Pull Requests
+* [#3509](https://github.com/rollup/rollup/pull/3509): Ban emitFile via absolute paths on Windows OS (@SASUKE40)
+* [#3510](https://github.com/rollup/rollup/pull/3510): Do not fail for circular imports between manual chunks (@lukastaegert)
+* [#3511](https://github.com/rollup/rollup/pull/3511): Support "super" in class fields (@lukastaegert)
+
+## 2.7.1
+*2020-04-21*
+
+### Bug Fixes
+* Use correct path for dynamic imports if `output.paths` is used (#3508)
+
+### Pull Requests
+* [#3508](https://github.com/rollup/rollup/pull/3508): Respect output.paths in dynamic imports (@lukastaegert)
+
+## 2.7.0
+*2020-04-21*
+
+### Features
+* Add `preserveEntrySignatures` option to control how exports of entry points are handled (#3498)
+* Add `preserveSignature` flag to `this.emitFile` to control exports of emitted chunks (#3498)
+* Add `output.minifyInternalExports` option to control if internal exports are minified (#3498)
+
+### Pull Requests
+* [#3498](https://github.com/rollup/rollup/pull/3498): Add option to configure if entry signatures are preserved (@lukastaegert)
+
 ## 2.6.1
 *2020-04-12*
 
