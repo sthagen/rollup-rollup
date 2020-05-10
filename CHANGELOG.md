@@ -1,5 +1,37 @@
 # rollup changelog
 
+## 2.8.2
+*2020-05-07*
+
+### Bug Fixes
+* Avoid invalid code when simplifying the body of a shorthand arrow function expression (#3540)
+
+### Pull Requests
+* [#3540](https://github.com/rollup/rollup/pull/3540): Wrap object expressions in parentheses if they become children of an arrow function expression (@lukastaegert)
+
+## 2.8.1
+*2020-05-07*
+
+### Bug Fixes
+* Allow using plugins on CLI that are exported as `exports.default` (#3529)
+* Do not fail side-effect detection in nested callbacks of builtins (#3539)
+
+### Pull Requests
+* [#3529](https://github.com/rollup/rollup/pull/3529): Use default named export with plugins (@NotWoods)
+* [#3539](https://github.com/rollup/rollup/pull/3539): Track call side-effects both by entity and CallExpression to avoid untracked side-effects in nested calls (@lukastaegert)
+
+## 2.8.0
+*2020-05-06*
+
+### Features
+* When a dynamically imported chunk contains more exports than the imported module namespace, do not create a facade chunk but an inline namespace (#3535)
+
+### Bug Fixes
+* Do not execute dynamically imported code before synchronous code in the importing module when generating CommonJS (#3535)
+
+### Pull Requests
+* [#3535](https://github.com/rollup/rollup/pull/3535): Avoid dynamic facade chunks (@lukastaegert)
+
 ## 2.7.6
 *2020-04-30*
 

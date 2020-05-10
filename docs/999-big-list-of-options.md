@@ -324,7 +324,7 @@ Default: `false`
 This will inline dynamic imports instead of creating new chunks to create a single bundle. Only possible if a single input is provided.
 
 #### manualChunks
-Type: `{ [chunkAlias: string]: string[] } | ((id: string) => string | void)`
+Type: `{ [chunkAlias: string]: string[] } | ((id: string, {getModuleInfo, getModuleIds}) => string | void)`
 
 Allows the creation of custom shared common chunks. When using the object form, each property represents a chunk that contains the listed modules and all their dependencies if they are part of the module graph unless they are already in another manual chunk. The name of the chunk will be determined by the property key.
 
@@ -349,6 +349,58 @@ manualChunks(id) {
 ```
 
 Be aware that manual chunks can change the behaviour of the application if side-effects are triggered before the corresponding modules are actually used.
+
+When using the function form, `manualChunks` will be passed an object as second parameter containing the functions `getModuleInfo` and `getModuleIds` that work the same way as [`this.getModuleInfo`](guide/en/#thisgetmoduleinfomoduleid-string--moduleinfo) and [`this.getModuleIds`](guide/en/#thisgetmoduleids--iterableiteratorstring) on the plugin context.
+
+This can be used to dynamically determine into which manual chunk a module should be placed depending on its position in the module graph. For instance consider a scenario where you have a set of components, each of which dynamically imports a set of translated strings, i.e.
+
+```js
+// Inside the "foo" component
+
+function getTranslatedStrings(currentLanguage) {
+  switch (currentLanguage) {
+    case 'en': return import('./foo.strings.en.js');
+    case 'de': return import('./foo.strings.de.js');
+    // ...
+  }
+}
+```
+
+If a lot of such components are used together, this will result in a lot of dynamic imports of very small chunks: Even though we known that all language files of the same language that are imported by the same chunk will always be used together, Rollup does not have this information.
+
+The following code will merge all files of the same language that are only used by a single entry point:
+
+```js
+manualChunks(id, { getModuleInfo }) {
+  const match = /.*\.strings\.(\w+)\.js/.exec(id);
+  if (match) {
+    const language = match[1]; // e.g. "en"
+    const dependentEntryPoints = [];
+
+    // we use a Set here so we handle each module at most once. This
+    // prevents infinite loops in case of circular dependencies
+    const idsToHandle = new Set(getModuleInfo(id).dynamicImporters);
+
+    for (const moduleId of idsToHandle) {
+      const { isEntry, isDynamicEntry, importers } = getModuleInfo(moduleId);
+      if (isEntry || isDynamicEntry) dependentEntryPoints.push(moduleId);
+
+      // The Set iterator is intelligent enough to iterate over elements that
+      // are added during iteration
+      for (const importerId of importers) idsToHandle.add(importerId);
+    }
+
+    // If there is a unique entry, we put it into into a chunk based on the entry name
+    if (dependentEntryPoints.length === 1) {
+      return `${dependentEntryPoints[0].split('/').slice(-1)[0]}.strings.${language}`;
+    }
+    // For multiple entries, we put it into a "shared" chunk
+    if (dependentEntryPoints.length > 1) {
+      return `shared.strings.${language}`;
+    }
+  }
+}
+```
 
 #### onwarn
 Type: `(warning: RollupWarning, defaultHandler: (warning: string | RollupWarning) => void) => void;`
@@ -1222,6 +1274,12 @@ For each key, the first number represents the elapsed time while the second repr
 
 These options only take effect when running Rollup with the `--watch` flag, or using `rollup.watch`.
 
+#### watch.buildDelay
+Type: `number`<br>
+Default: `0`
+
+Configures how long Rollup will wait for further changes until it triggers a rebuild in milliseconds. By default, Rollup does not wait but there is a small debounce timeout configured in the chokidar instance. Setting this to a value greater than `0` will mean that Rollup will only triger a rebuild if there was no change for the configured number of milliseconds. If several configurations are watched, Rollup will use the largest configured build delay.
+
 #### watch.chokidar
 Type: `ChokidarOptions`<br>
 
@@ -1229,21 +1287,18 @@ An optional object of watch options that will be passed to the bundled [chokidar
 
 #### watch.clearScreen
 Type: `boolean`<br>
-CLI: `--watch.clearScreen`/`--no-watch.clearScreen`<br>
 Default: `true`
 
 Whether to clear the screen when a rebuild is triggered.
 
 #### watch.skipWrite
 Type: `boolean`<br>
-<!-- CLI: `--watch.skipWrite`<br> -->
 Default: `false`
 
 Whether to skip the `bundle.write()` step when a rebuild is triggered.
 
 #### watch.exclude
-Type: `string`<br>
-CLI: `--watch.exclude <excludedPattern>`
+Type: `string`
 
 Prevent files from being watched:
 
@@ -1258,8 +1313,7 @@ export default {
 ```
 
 #### watch.include
-Type: `string`<br>
-CLI: `--watch.include <includedPattern>`
+Type: `string`
 
 Limit the file-watching to certain files:
 
