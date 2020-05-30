@@ -1,5 +1,166 @@
 # rollup changelog
 
+## 2.11.2
+*2020-05-28*
+
+### Bug Fixes
+* Include side-effects in the second argument of `Array.from` (#3604)
+
+### Pull Requests
+* [#3604](https://github.com/rollup/rollup/pull/3604): Mark `Array.from` as side-effectful, use two-argument Array.from when mapping Sets (@lukastaegert)
+
+## 2.11.1
+*2020-05-28*
+
+### Bug Fixes
+* Also include side-effects in files that are marked as side-effect-free if they contain an included default export that is reexported (#3602)
+
+### Pull Requests
+* [#3602](https://github.com/rollup/rollup/pull/3602): Handle side-effects next to side-effect-free default exports in case the default export is reexported (@lukastaegert)
+
+## 2.11.0
+*2020-05-27*
+
+### Features
+* Add basic support for optional chaining (#3582)
+* Provide a normalized set of options with proper default values to `buildStart` and `renderStart` (#3597)
+* Do not count adding properties to the prototype of an unused class as a side-effect (#3598)
+* Support providing `null` for empty setters in SystemJS via option (#3592)
+
+### Bug Fixes
+* Do not fail when using a `/*#__PURE__*/` annotation inside a class field (#3599)
+* Allow using `--watch` and `--treeshake` together with sub-options such as `--watch.clearScreen` on the command line (#3597)
+
+### Pull Requests
+* [#3582](https://github.com/rollup/rollup/pull/3582): Support optional chaining via acorn fork(@guybedford)
+* [#3592](https://github.com/rollup/rollup/pull/3592): System format optional setters(@guybedford)
+* [#3597](https://github.com/rollup/rollup/pull/3597): Provide normalized options (@lukastaegert)
+* [#3598](https://github.com/rollup/rollup/pull/3598): Treeshake prototype modifications in classes (@lukastaegert)
+* [#3599](https://github.com/rollup/rollup/pull/3599): Retain pure annotations in class fields (@lukastaegert)
+* [#3601](https://github.com/rollup/rollup/pull/3601): Fix white-space in docs (@tu4mo)
+
+## 2.10.9
+*2020-05-24*
+
+### Bug Fixes
+* Prevent invalid exports when facades are created (#3590)
+
+### Pull Requests
+* [#3590](https://github.com/rollup/rollup/pull/3590): Prevent unneeded exports when entry facades are created and ensure all exported variables in facades are imported (@lukastaegert)
+
+## 2.10.8
+*2020-05-23*
+
+### Bug Fixes
+* Fix issues when synthetic named exports are reexported as default exports (#3586)
+
+### Pull Requests
+* [#3584](https://github.com/rollup/rollup/pull/3584): Clarify documentation for `output.paths` (@jacksteamdev)
+* [#3585](https://github.com/rollup/rollup/pull/3585): Target Node.js v14 instead of v13 in Windows tests (@mangs)
+* [#3586](https://github.com/rollup/rollup/pull/3586): Handle default reexports of synthetic named exports over several stages (@lukastaegert)
+
+## 2.10.7
+*2020-05-22*
+
+### Bug Fixes
+* Handle modules re-exporting namespaces without further own code (#3576)
+
+### Pull Requests
+* [#3576](https://github.com/rollup/rollup/pull/3576): Fix "cannot read exports of undefined" error (@guybedford)
+
+## 2.10.6
+*2020-05-22*
+
+### Bug Fixes
+* Fix some issues around class fields (#3580)
+* Prevent a maximum call stack error when a called entity references itself in its declaration (#3581)
+
+### Pull Requests
+* [#3580](https://github.com/rollup/rollup/pull/3580): Update acorn class features (@guybedford)
+* [#3581](https://github.com/rollup/rollup/pull/3581): Do not fail when including call arguments of recursively defined variables (@lukastaegert)
+
+## 2.10.5
+*2020-05-19*
+
+### Bug Fixes
+* Do not remove side-effects that may influence an included default export declaration when side-effects are disabled (#3572)
+
+### Pull Requests
+* [#3572](https://github.com/rollup/rollup/pull/3572): Observe side-effects in files containing a default export declaration that reexports a variable (@lukastaegert)
+
+## 2.10.4
+*2020-05-19*
+
+### Bug Fixes
+* Tree-shake unused classes with fields unless there are side-effects in the field declaration (#3569)
+
+### Pull Requests
+* [#3569](https://github.com/rollup/rollup/pull/3569): Make sure unused classes with fields are tree-shaken if possible (@lukastaegert)
+
+## 2.10.3
+*2020-05-18*
+
+### Bug Fixes
+* Validate return value of sourcemapPathTransform option (#3561)
+
+### Pull Requests
+* [#3561](https://github.com/rollup/rollup/pull/3561): Throw error if sourcemapPathTransform-option does not return a string (@Simonwep)
+
+## 2.10.2
+*2020-05-15*
+
+### Bug Fixes
+* Properly include calls to mutating array methods in certain scenarios (#3559)
+
+### Pull Requests
+* [#3559](https://github.com/rollup/rollup/pull/3559): Make sure UnknownFooExpressions are included when referenced as return values in a MultiExpression (@lukastaegert)
+
+## 2.10.1
+*2020-05-15*
+
+### Bug Fixes
+* Do not throw when "undefined" is used as a default export (#3558)
+
+### Pull Requests
+* [#3558](https://github.com/rollup/rollup/pull/3558): Properly handle default exporting undefined (@lukastaegert)
+
+## 2.10.0
+*2020-05-13*
+
+### Features
+* Avoid unnecessary empty imports from a facade chunk to the original chunk (#3552)
+* Pin facade creation order so that if several user-defined chunks reference the same module, the first always becomes the "actual" chunk while the later ones become facades (#3552)
+
+### Bug Fixes
+* Do not omit reexports from secondary chunks when creating facades for entry points without hoisting transitive dependencies (#3552)
+
+### Pull Requests
+* [#3552](https://github.com/rollup/rollup/pull/3552): Avoid unnecessary facade dependency inlining (@guybedford)
+
+## 2.9.1
+*2020-05-11*
+
+### Bug Fixes
+* Do not create unintended live-bindings or invalid reexports when reexporting global variables (#3550)
+
+### Pull Requests
+* [#3550](https://github.com/rollup/rollup/pull/3550): Track updates of globals that are exported as default (@lukastaegert)
+
+## 2.9.0
+*2020-05-10*
+
+### Features
+* Add ids of static and dynamic imports to `this.getModuleInfo` (#3542)
+* Provide `getModuleInfo` and `getModuleIds` to `manualChunks` functions (#3542)
+* Add nullish coalescing support (#3548)
+* Make the rebuild delay in watch mode configurable and set the default to `0` for snappy rebuilds (#3502)
+* Add `this.getModuleIds` to the plugin context as future replacement for `this.moduleIds` (#3542)
+
+### Pull Requests
+* [#3502](https://github.com/rollup/rollup/pull/3502): Configurable build delay (@mattdesl)
+* [#3542](https://github.com/rollup/rollup/pull/3542): Extend manualChunks API (@lukastaegert)
+* [#3548](https://github.com/rollup/rollup/pull/3548): Support nullish coalescing with tree-shaking (@lukastaegert)
+
 ## 2.8.2
 *2020-05-07*
 

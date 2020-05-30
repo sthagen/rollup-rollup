@@ -1,9 +1,10 @@
-import { AstContext } from '../../Module';
+import Module, { AstContext } from '../../Module';
 import ClassDeclaration from '../nodes/ClassDeclaration';
 import ExportDefaultDeclaration from '../nodes/ExportDefaultDeclaration';
 import FunctionDeclaration from '../nodes/FunctionDeclaration';
 import Identifier, { IdentifierWithVariable } from '../nodes/Identifier';
 import LocalVariable from './LocalVariable';
+import UndefinedVariable from './UndefinedVariable';
 import Variable from './Variable';
 
 export default class ExportDefaultVariable extends LocalVariable {
@@ -11,7 +12,10 @@ export default class ExportDefaultVariable extends LocalVariable {
 
 	// Not initialised during construction
 	private originalId: IdentifierWithVariable | null = null;
-	private originalVariable: Variable | null = null;
+	private originalVariableAndDeclarationModules: {
+		modules: Module[];
+		original: Variable;
+	} | null = null;
 
 	constructor(
 		name: string,
@@ -60,17 +64,34 @@ export default class ExportDefaultVariable extends LocalVariable {
 	}
 
 	getOriginalVariable(): Variable {
-		if (this.originalVariable === null) {
-			if (!this.originalId || (!this.hasId && this.originalId.variable.isReassigned)) {
-				this.originalVariable = this;
+		return this.getOriginalVariableAndDeclarationModules().original;
+	}
+
+	getOriginalVariableAndDeclarationModules(): { modules: Module[]; original: Variable } {
+		if (this.originalVariableAndDeclarationModules === null) {
+			if (
+				!this.originalId ||
+				(!this.hasId &&
+					(this.originalId.variable.isReassigned ||
+						this.originalId.variable instanceof UndefinedVariable))
+			) {
+				this.originalVariableAndDeclarationModules = { modules: [], original: this };
 			} else {
 				const assignedOriginal = this.originalId.variable;
-				this.originalVariable =
-					assignedOriginal instanceof ExportDefaultVariable
-						? assignedOriginal.getOriginalVariable()
-						: assignedOriginal;
+				if (assignedOriginal instanceof ExportDefaultVariable) {
+					const { modules, original } = assignedOriginal.getOriginalVariableAndDeclarationModules();
+					this.originalVariableAndDeclarationModules = {
+						modules: modules.concat(this.module),
+						original
+					};
+				} else {
+					this.originalVariableAndDeclarationModules = {
+						modules: [this.module],
+						original: assignedOriginal
+					};
+				}
 			}
 		}
-		return this.originalVariable;
+		return this.originalVariableAndDeclarationModules;
 	}
 }
