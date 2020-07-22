@@ -1,5 +1,197 @@
 # rollup changelog
 
+## 2.22.2
+*2020-07-18*
+
+### Bug Fixes
+* Always generate correct exports when an implicit entry is reexporting from another module (#3688)
+
+### Pull Requests
+* [#3688](https://github.com/rollup/rollup/pull/3688): Include all relevant modules to generate reexports for implicit dependencies (@lukastaegert)
+
+## 2.22.1
+*2020-07-18*
+
+### Bug Fixes
+* Remove unused arguments when calling a conditional expression (#3680)
+
+### Pull Requests
+* [#3680](https://github.com/rollup/rollup/pull/3680): Allow tree-shaking of arguments of functions that are returned by conditional expressions (@lukastaegert)
+
+## 2.22.0
+*2020-07-18*
+
+### Features
+* Allow resolving snythetic named exports via an arbitrary export name (#3657)
+* Display a warning when the user does not explicitly select an export mode and would generate a chunk with default export mode when targeting CommonJS (#3657)
+
+### Pull Requests
+* [#3657](https://github.com/rollup/rollup/pull/3657): Add basic support for using a non-default export for syntheticNamedExports (@lukastaegert)
+* [#3659](https://github.com/rollup/rollup/pull/3659): Warn when implicitly using default export mode (@lukastaegert)
+
+## 2.21.0
+*2020-07-07*
+
+### Features
+* Allow plugins to disable tree-shaking for individual modules to ensure even empty modules are associated with chunks (#3663)
+
+### Pull Requests
+* [#3663](https://github.com/rollup/rollup/pull/3663): Disable treeshaking per module (@lukastaegert)
+
+## 2.20.0
+*2020-07-06*
+
+### Features
+* Support using a function to generate different chunk and asset naming patterns per chunk or asset (#3658)
+* Add `referencedFiles` property to the chunk info in generateBundle to list referenced assets (#3661)
+
+### Pull Requests
+* [#3658](https://github.com/rollup/rollup/pull/3658): Add ability to use a function that returns a pattern string in all places where you could use a pattern string before (@frank-dspeed)
+* [#3661](https://github.com/rollup/rollup/pull/3661): Add referenced files to bundle (@lukastaegert)
+
+## 2.19.0
+*2020-07-05*
+
+### Features
+* Allow plugins to return a Promise in the options hook (#3660)
+
+### Pull Requests
+* [#3660](https://github.com/rollup/rollup/pull/3660): Make options hooks async (@TomerAberbach)
+
+## 2.18.2
+*2020-07-02*
+
+### Bug Fixes
+* Do not remove spread element args when the corresponding positional parameter is unused (#3652)
+
+### Pull Requests
+* [#3652](https://github.com/rollup/rollup/pull/3652): Do not tree-shake arguments that contain a spread element (@lukastaegert)
+
+## 2.18.1
+*2020-06-26*
+
+### Bug Fixes
+* Make sure synthetic exports are present when a module is imported dynamically (#3648)
+* Strip the `rollup-plugin-` prefix off the plugin name when looking for the plugin export in a CLI plugin without a default export (#3647)
+* Convert plugin names with dashes to camel case when looking for the plugin export in a CLI plugin without a default export (#3647)
+
+### Pull Requests
+* [#3647](https://github.com/rollup/rollup/pull/3647): Strip rollup-plugin prefix to find named plugin exports, throw when export cannot be found (@lukastaegert)
+* [#3648](https://github.com/rollup/rollup/pull/3648): Always create a dynamic namespace object when a module with synthetic named exports is imported dynamically (@lukastaegert)
+
+## 2.18.0
+*2020-06-22*
+
+### Features
+* `inlineDynamicImports`, `manualChunks` and `preserveModules` can now be used as output options (#3645)
+* Use sourcemaps for certain warnings that reference source code locations (#3645)
+
+### Bug Fixes
+* `this.getFileName` will now always return the correct file name for chunks when multiple outputs are created (#3645)
+
+### Pull Requests
+* [#3645](https://github.com/rollup/rollup/pull/3645): Per output chunking (@lukastaegert)
+
+## 2.17.1
+*2020-06-19*
+
+### Bug Fixes
+* Properly resolve accessing properties of namespace members again (#3643)
+
+### Pull Requests
+* [#3643](https://github.com/rollup/rollup/pull/3643): Fix accessing nested properties of namespaces (@lukastaegert)
+
+## 2.17.0
+*2020-06-17*
+
+### Features
+* When importing Rollup via package.exports, always fall back to the browser ESM build for non-Node environments (#3634)
+* Create more efficient code when handling namespace mutations (#3637)
+
+### Bug Fixes
+* Fix a severe performance regression when the same module is imported by a lot of modules (#3641)
+* Properly escape special characters in imports (#3638)
+
+### Pull Requests
+* [#3634](https://github.com/rollup/rollup/pull/3634): Set browser build in exports (@guybedford)
+* [#3637](https://github.com/rollup/rollup/pull/3637): Do not include the whole namespace when illegally mutating a namespace (@lukastaegert)
+* [#3638](https://github.com/rollup/rollup/pull/3638): Support backslash escaping, retain exact newline escaping (@guybedford)
+* [#3641](https://github.com/rollup/rollup/pull/3641): Fix performance regression when a file is imported by many importers (@lukastaegert)
+
+## 2.16.1
+*2020-06-13*
+
+### Bug Fixes
+* Do not produce invalid code when an external or chunk id contain quotes or line-breaks (#3632)
+* Do not fail but emit a warning when mutating a namespace object (#3633)
+
+### Pull Requests
+* [#3632](https://github.com/rollup/rollup/pull/3632): Handle single quote escaping in ids (@guybedford)
+* [#3633](https://github.com/rollup/rollup/pull/3633): Turn namespace assignment error into a warning (@guybedford)
+
+## 2.16.0
+*2020-06-12*
+
+### Features
+* Add support for numeric separators (#3626)
+* Switch to finalized ESTree optional chaining AST (#3628)
+
+### Pull Requests
+* [#3626](https://github.com/rollup/rollup/pull/3626): Support numeric separator (@TrySound)
+* [#3628](https://github.com/rollup/rollup/pull/3628): Acorn 7.3.0 upgrade (@guybedford)
+* [#3631](https://github.com/rollup/rollup/pull/3631): Improve discoverability of `manualChunks` for code splitting (@zlamma)
+
+## 2.15.0
+*2020-06-08*
+
+### Features
+* Allow to skip watching some configs via `watch: false` (#3620)
+* Provide the resolved sourcemap path to `sourcemapPathTransform` (#3617)
+
+### Pull Requests
+* [#3617](https://github.com/rollup/rollup/pull/3617): Update sourcemapPathTransform to also take the path to the sourcemap file as a second argument (@dgoldstein0)
+* [#3620](https://github.com/rollup/rollup/pull/3620): Rollup watch only one config in exported array (@luwol03)
+
+## 2.14.0
+*2020-06-07*
+
+### Features
+* Make `this.meta.watchMode` available for plugins to detect watch mode (#3616)
+
+### Bug Fixes
+* Handle exporting the same binding with different names in SystemJS (#3575)
+
+### Pull Requests
+* [#3575](https://github.com/rollup/rollup/pull/3575): Handle some cases of duplicate export bindings (@joeljeske)
+* [#3616](https://github.com/rollup/rollup/pull/3616): Make watch mode available in plugins (@lukastaegert)
+
+## 2.13.1
+*2020-06-04*
+
+### Bug Fixes
+* Prevent conflicts in SystemJS when `module` is used as a top-level variable (#3614)
+
+### Pull Requests
+* [#3614](https://github.com/rollup/rollup/pull/3614): Handle system reserved identifier dedupes (@guybedford)
+
+## 2.13.0
+*2020-06-03*
+
+### Features
+* Allow to specify that an emitted chunk is only loaded after a given module has loaded to improve chunking (#3606)
+
+### Pull Requests
+* [#3606](https://github.com/rollup/rollup/pull/3606): Enable specifying implicit dependencies when emitting chunks (@lukastaegert)
+
+## 2.12.1
+*2020-06-02*
+
+### Bug Fixes
+* Render valid imports when chunk names correspond to directory names in virtual setups (#3609)
+
+### Pull Requests
+* [#3609](https://github.com/rollup/rollup/pull/3609): Handle imports from chunks with names that correspond to parent directory names of other chunks (@guybedford)
+
 ## 2.12.0
 *2020-05-31*
 

@@ -13,6 +13,7 @@ const DECONFLICT_IMPORTED_VARIABLES_BY_FORMAT: {
 		dependencies: Set<ExternalModule | Chunk>,
 		interop: boolean,
 		preserveModules: boolean,
+		chunkByModule: Map<Module, Chunk>,
 		syntheticExports: Set<SyntheticNamedExportVariable>
 	) => void;
 } = {
@@ -32,10 +33,12 @@ export function deconflictChunk(
 	format: string,
 	interop: boolean,
 	preserveModules: boolean,
-	syntheticExports: Set<SyntheticNamedExportVariable>
+	chunkByModule: Map<Module, Chunk>,
+	syntheticExports: Set<SyntheticNamedExportVariable>,
+	exportNamesByVariable: Map<Variable, string[]>
 ) {
 	for (const module of modules) {
-		module.scope.addUsedOutsideNames(usedNames, format);
+		module.scope.addUsedOutsideNames(usedNames, format, exportNamesByVariable);
 	}
 	deconflictTopLevelVariables(usedNames, modules);
 	DECONFLICT_IMPORTED_VARIABLES_BY_FORMAT[format](
@@ -44,11 +47,12 @@ export function deconflictChunk(
 		dependencies,
 		interop,
 		preserveModules,
+		chunkByModule,
 		syntheticExports
 	);
 
 	for (const module of modules) {
-		module.scope.deconflict(format);
+		module.scope.deconflict(format, exportNamesByVariable);
 	}
 }
 
@@ -58,6 +62,7 @@ function deconflictImportsEsm(
 	dependencies: Set<ExternalModule | Chunk>,
 	interop: boolean,
 	preserveModules: boolean,
+	_chunkByModule: Map<Module, Chunk>,
 	syntheticExports: Set<SyntheticNamedExportVariable>
 ) {
 	// Deconflict re-exported variables of dependencies when preserveModules is true.
@@ -107,7 +112,8 @@ function deconflictImportsOther(
 	imports: Set<Variable>,
 	dependencies: Set<ExternalModule | Chunk>,
 	interop: boolean,
-	preserveModules: boolean
+	preserveModules: boolean,
+	chunkByModule: Map<Module, Chunk>
 ) {
 	for (const chunkOrExternalModule of dependencies) {
 		chunkOrExternalModule.variableName = getSafeName(chunkOrExternalModule.variableName, usedNames);
@@ -124,7 +130,7 @@ function deconflictImportsOther(
 				variable.setRenderNames(module.variableName, null);
 			}
 		} else {
-			const chunk = module!.chunk!;
+			const chunk = chunkByModule.get(module!)!;
 			if (chunk.exportMode === 'default' || (preserveModules && variable.isNamespace)) {
 				variable.setRenderNames(null, chunk.variableName);
 			} else {

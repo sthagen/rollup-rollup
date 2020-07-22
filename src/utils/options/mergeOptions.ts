@@ -116,7 +116,7 @@ function mergeInputOptions(
 		shimMissingExports: getOption('shimMissingExports'),
 		strictDeprecations: getOption('strictDeprecations'),
 		treeshake: getObjectOption(config, overrides, 'treeshake'),
-		watch: getObjectOption(config, overrides, 'watch')
+		watch: getWatch(config, overrides, 'watch')
 	};
 
 	warnUnknownOptions(
@@ -161,6 +161,9 @@ const getObjectOption = (
 	return configOption;
 };
 
+const getWatch = (config: GenericConfigObject, overrides: GenericConfigObject, name: string) =>
+	config.watch !== false && getObjectOption(config, overrides, name);
+
 export const normalizeObjectOptionValue = (optionValue: any) => {
 	if (!optionValue) {
 		return optionValue;
@@ -204,8 +207,10 @@ function mergeOutputOptions(
 		globals: getOption('globals'),
 		hoistTransitiveImports: getOption('hoistTransitiveImports'),
 		indent: getOption('indent'),
+		inlineDynamicImports: getOption('inlineDynamicImports'),
 		interop: getOption('interop'),
 		intro: getOption('intro'),
+		manualChunks: getOption('manualChunks'),
 		minifyInternalExports: getOption('minifyInternalExports'),
 		name: getOption('name'),
 		namespaceToStringTag: getOption('namespaceToStringTag'),
@@ -214,6 +219,7 @@ function mergeOutputOptions(
 		paths: getOption('paths'),
 		plugins: ensureArray(config.plugins) as Plugin[],
 		preferConst: getOption('preferConst'),
+		preserveModules: getOption('preserveModules'),
 		sourcemap: getOption('sourcemap'),
 		sourcemapExcludeSources: getOption('sourcemapExcludeSources'),
 		sourcemapFile: getOption('sourcemapFile'),

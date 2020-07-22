@@ -1,4 +1,4 @@
-import * as acorn from 'fork-acorn-optional-chaining';
+import * as acorn from 'acorn';
 import { locate } from 'locate-character';
 import MagicString from 'magic-string';
 import extractAssignedNames from 'rollup-pluginutils/src/extractAssignedNames';
@@ -26,7 +26,6 @@ import ExternalVariable from './ast/variables/ExternalVariable';
 import NamespaceVariable from './ast/variables/NamespaceVariable';
 import SyntheticNamedExportVariable from './ast/variables/SyntheticNamedExportVariable';
 import Variable from './ast/variables/Variable';
-import Chunk from './Chunk';
 import ExternalModule from './ExternalModule';
 import Graph from './Graph';
 import {
@@ -38,11 +37,12 @@ import {
 	PreserveEntrySignaturesOption,
 	ResolvedIdMap,
 	RollupError,
+	RollupLogProps,
 	RollupWarning,
 	TransformModuleJSON
 } from './rollup/types';
-import { error, Errors } from './utils/error';
-import getCodeFrame from './utils/getCodeFrame';
+import { augmentCodeLocation, errNamespaceConflict, error, Errors } from './utils/error';
+import { getId } from './utils/getId';
 import { getOriginalLocation } from './utils/getOriginalLocation';
 import { makeLegal } from './utils/identifierHelpers';
 import { basename, extname } from './utils/path';
@@ -89,7 +89,7 @@ export interface AstContext {
 	addImportMeta: (node: MetaProperty) => void;
 	code: string;
 	deoptimizationTracker: PathTracker;
-	error: (props: RollupError, pos?: number) => never;
+	error: (props: RollupError, pos: number) => never;
 	fileName: string;
 	getExports: () => string[];
 	getModuleExecIndex: () => number;
@@ -107,7 +107,7 @@ export interface AstContext {
 	traceExport: (name: string) => Variable;
 	traceVariable: (name: string) => Variable | null;
 	usesTopLevelAwait: boolean;
-	warn: (warning: RollupWarning, pos?: number) => void;
+	warn: (warning: RollupWarning, pos: number) => void;
 }
 
 function tryParse(module: Module, Parser: typeof acorn.Parser, acornOptions: acorn.Options) {
@@ -177,7 +177,6 @@ function getVariableForExportNameRecursive(
 }
 
 export default class Module {
-	chunk: Chunk | null = null;
 	chunkFileNames = new Set<string>();
 	chunkName: string | null = null;
 	code!: string;
@@ -195,7 +194,8 @@ export default class Module {
 	exportAllSources = new Set<string>();
 	exports: { [name: string]: ExportDescription } = Object.create(null);
 	exportsAll: { [name: string]: string } = Object.create(null);
-	facadeChunk: Chunk | null = null;
+	implicitlyLoadedAfter = new Set<Module>();
+	implicitlyLoadedBefore = new Set<Module>();
 	importDescriptions: { [name: string]: ImportDescription } = Object.create(null);
 	importers: string[] = [];
 	importMetas: MetaProperty[] = [];
@@ -203,7 +203,6 @@ export default class Module {
 	includedDynamicImporters: Module[] = [];
 	isExecuted = false;
 	isUserDefinedEntryPoint = false;
-	manualChunkAlias: string = null as any;
 	namespace!: NamespaceVariable;
 	originalCode!: string;
 	originalSourcemap!: ExistingDecodedSourceMap | null;
@@ -223,7 +222,6 @@ export default class Module {
 	private astContext!: AstContext;
 	private context: string;
 	private customTransformCache!: boolean;
-	private defaultExport: Variable | null | undefined = null;
 	private esTreeAst!: acorn.Node;
 	private exportAllModules: (Module | ExternalModule)[] = [];
 	private exportNamesByVariable: Map<Variable, string[]> | null = null;
@@ -231,6 +229,7 @@ export default class Module {
 	private magicString!: MagicString;
 	private relevantDependencies: Set<Module | ExternalModule> | null = null;
 	private syntheticExports = new Map<string, SyntheticNamedExportVariable>();
+	private syntheticNamespace: Variable | null | undefined = null;
 	private transformDependencies: string[] = [];
 	private transitiveReexports: string[] | null = null;
 
@@ -238,8 +237,8 @@ export default class Module {
 		private readonly graph: Graph,
 		public readonly id: string,
 		private readonly options: NormalizedInputOptions,
-		public moduleSideEffects: boolean,
-		public syntheticNamedExports: boolean,
+		public moduleSideEffects: boolean | 'no-treeshake',
+		public syntheticNamedExports: boolean | string,
 		public isEntryPoint: boolean
 	) {
 		this.excludeFromSourcemap = /\0/.test(id);
@@ -257,33 +256,8 @@ export default class Module {
 		this.ast.bind();
 	}
 
-	error(props: RollupError, pos?: number): never {
-		if (typeof pos === 'number') {
-			props.pos = pos;
-			let location: { column: number; line: number } = locate(this.code, pos, { offsetLine: 1 });
-			try {
-				location = getOriginalLocation(this.sourcemapChain, location);
-			} catch (e) {
-				this.warn({
-					code: 'SOURCEMAP_ERROR',
-					loc: {
-						column: location.column,
-						file: this.id,
-						line: location.line
-					},
-					message: `Error when using sourcemap for reporting an error: ${e.message}`,
-					pos
-				});
-			}
-
-			props.loc = {
-				column: location.column,
-				file: this.id,
-				line: location.line
-			};
-			props.frame = getCodeFrame(this.originalCode, location.line, location.column);
-		}
-
+	error(props: RollupError, pos: number): never {
+		this.addLocationToLogProps(props, pos);
 		return error(props);
 	}
 
@@ -312,21 +286,6 @@ export default class Module {
 		return allExportNames;
 	}
 
-	getDefaultExport() {
-		if (this.defaultExport === null) {
-			this.defaultExport = undefined;
-			this.defaultExport = this.getVariableForExportName('default');
-		}
-		if (!this.defaultExport) {
-			return error({
-				code: Errors.SYNTHETIC_NAMED_EXPORTS_NEED_DEFAULT,
-				id: this.id,
-				message: `Modules with 'syntheticNamedExports' need a default export.`
-			});
-		}
-		return this.defaultExport;
-	}
-
 	getDependenciesToBeIncluded(): Set<Module | ExternalModule> {
 		if (this.relevantDependencies) return this.relevantDependencies;
 		const relevantDependencies = new Set<Module | ExternalModule>();
@@ -336,7 +295,8 @@ export default class Module {
 		if (
 			this.isEntryPoint ||
 			this.includedDynamicImporters.length > 0 ||
-			this.options.preserveModules
+			this.namespace.included ||
+			this.implicitlyLoadedAfter.size > 0
 		) {
 			dependencyVariables = new Set(dependencyVariables);
 			for (const exportName of [...this.getReexports(), ...this.getExports()]) {
@@ -356,7 +316,7 @@ export default class Module {
 			}
 			relevantDependencies.add(variable.module!);
 		}
-		if (this.options.treeshake) {
+		if (this.options.treeshake && this.moduleSideEffects !== 'no-treeshake') {
 			for (const dependency of possibleDependencies) {
 				if (
 					!(
@@ -388,6 +348,7 @@ export default class Module {
 		}
 		const exportNamesByVariable: Map<Variable, string[]> = new Map();
 		for (const exportName of this.getAllExportNames()) {
+			if (exportName === this.syntheticNamedExports) continue;
 			let tracedVariable = this.getVariableForExportName(exportName);
 			if (tracedVariable instanceof ExportDefaultVariable) {
 				tracedVariable = tracedVariable.getOriginalVariable();
@@ -446,6 +407,31 @@ export default class Module {
 		return { renderedExports, removedExports };
 	}
 
+	getSyntheticNamespace() {
+		if (this.syntheticNamespace === null) {
+			this.syntheticNamespace = undefined;
+			this.syntheticNamespace = this.getVariableForExportName(
+				typeof this.syntheticNamedExports === 'string' ? this.syntheticNamedExports : 'default'
+			);
+		}
+		if (!this.syntheticNamespace) {
+			return error({
+				code: Errors.SYNTHETIC_NAMED_EXPORTS_NEED_NAMESPACE_EXPORT,
+				id: this.id,
+				message: `Module "${relativeId(
+					this.id
+				)}" that is marked with 'syntheticNamedExports: ${JSON.stringify(
+					this.syntheticNamedExports
+				)}' needs ${
+					typeof this.syntheticNamedExports === 'string' && this.syntheticNamedExports !== 'default'
+						? `an export named "${this.syntheticNamedExports}"`
+						: 'a default export'
+				}.`
+			});
+		}
+		return this.syntheticNamespace;
+	}
+
 	getVariableForExportName(
 		name: string,
 		isExportAllSearch?: boolean,
@@ -489,7 +475,7 @@ export default class Module {
 				return this.exportShimVariable;
 			}
 			const name = exportDeclaration.localName;
-			return this.traceVariable(name) || this.graph.scope.findVariable(name);
+			return this.traceVariable(name)!;
 		}
 
 		if (name !== 'default') {
@@ -511,8 +497,12 @@ export default class Module {
 			if (this.syntheticNamedExports) {
 				let syntheticExport = this.syntheticExports.get(name);
 				if (!syntheticExport) {
-					const defaultExport = this.getDefaultExport();
-					syntheticExport = new SyntheticNamedExportVariable(this.astContext, name, defaultExport);
+					const syntheticNamespace = this.getSyntheticNamespace();
+					syntheticExport = new SyntheticNamedExportVariable(
+						this.astContext,
+						name,
+						syntheticNamespace
+					);
 					this.syntheticExports.set(name, syntheticExport);
 					return syntheticExport;
 				}
@@ -528,7 +518,10 @@ export default class Module {
 	}
 
 	hasEffects() {
-		return this.ast.included && this.ast.hasEffects(createHasEffectsContext());
+		return (
+			this.moduleSideEffects === 'no-treeshake' ||
+			(this.ast.included && this.ast.hasEffects(createHasEffectsContext()))
+		);
 	}
 
 	include(): void {
@@ -572,29 +565,31 @@ export default class Module {
 		return this.ast.included || this.namespace.included;
 	}
 
-	linkDependencies() {
-		for (const source of this.sources) {
-			this.dependencies.add(this.graph.modulesById.get(this.resolvedIds[source].id)!);
-		}
-		for (const { resolution } of this.dynamicImports) {
-			if (resolution instanceof Module || resolution instanceof ExternalModule) {
-				this.dynamicDependencies.add(resolution);
-			}
-		}
-
+	linkImports() {
 		this.addModulesToImportDescriptions(this.importDescriptions);
 		this.addModulesToImportDescriptions(this.reexportDescriptions);
-
+		for (const name in this.exports) {
+			if (name !== 'default') {
+				this.exportsAll[name] = this.id;
+			}
+		}
 		const externalExportAllModules: ExternalModule[] = [];
 		for (const source of this.exportAllSources) {
-			const module = this.graph.modulesById.get(this.resolvedIds[source].id) as
-				| Module
-				| ExternalModule;
-			(module instanceof ExternalModule ? externalExportAllModules : this.exportAllModules).push(
-				module
-			);
+			const module = this.graph.modulesById.get(this.resolvedIds[source].id)!;
+			if (module instanceof ExternalModule) {
+				externalExportAllModules.push(module);
+				continue;
+			}
+			this.exportAllModules.push(module);
+			for (const name in module.exportsAll) {
+				if (name in this.exportsAll) {
+					this.options.onwarn(errNamespaceConflict(name, this, module));
+				} else {
+					this.exportsAll[name] = module.exportsAll[name];
+				}
+			}
 		}
-		this.exportAllModules = [...this.exportAllModules, ...externalExportAllModules];
+		this.exportAllModules.push(...externalExportAllModules);
 	}
 
 	render(options: RenderOptions): MagicString {
@@ -630,10 +625,10 @@ export default class Module {
 		}
 		this.transformDependencies = transformDependencies;
 		this.customTransformCache = customTransformCache;
-		if (typeof moduleSideEffects === 'boolean') {
+		if (moduleSideEffects != null) {
 			this.moduleSideEffects = moduleSideEffects;
 		}
-		if (typeof syntheticNamedExports === 'boolean') {
+		if (syntheticNamedExports != null) {
 			this.syntheticNamedExports = syntheticNamedExports;
 		}
 
@@ -717,7 +712,7 @@ export default class Module {
 			ast: this.esTreeAst,
 			code: this.code,
 			customTransformCache: this.customTransformCache,
-			dependencies: Array.from(this.dependencies, module => module.id),
+			dependencies: Array.from(this.dependencies, getId),
 			id: this.id,
 			moduleSideEffects: this.moduleSideEffects,
 			originalCode: this.originalCode,
@@ -761,18 +756,9 @@ export default class Module {
 		return null;
 	}
 
-	warn(warning: RollupWarning, pos?: number) {
-		if (typeof pos === 'number') {
-			warning.pos = pos;
-
-			const { line, column } = locate(this.code, pos, { offsetLine: 1 }); // TODO trace sourcemaps, cf. error()
-
-			warning.loc = { file: this.id, line, column };
-			warning.frame = getCodeFrame(this.code, line, column);
-		}
-
-		warning.id = this.id;
-		this.options.onwarn(warning);
+	warn(props: RollupWarning, pos: number) {
+		this.addLocationToLogProps(props, pos);
+		this.options.onwarn(props);
 	}
 
 	private addDynamicImport(node: ImportExpression) {
@@ -882,13 +868,37 @@ export default class Module {
 		this.importMetas.push(node);
 	}
 
+	private addLocationToLogProps(props: RollupLogProps, pos: number): void {
+		props.id = this.id;
+		props.pos = pos;
+		let code = this.code;
+		let { column, line } = locate(code, pos, { offsetLine: 1 });
+		try {
+			({ column, line } = getOriginalLocation(this.sourcemapChain, { column, line }));
+			code = this.originalCode;
+		} catch (e) {
+			this.options.onwarn({
+				code: 'SOURCEMAP_ERROR',
+				id: this.id,
+				loc: {
+					column,
+					file: this.id,
+					line
+				},
+				message: `Error when using sourcemap for reporting an error: ${e.message}`,
+				pos
+			});
+		}
+		augmentCodeLocation(props, { column, line }, code, this.id);
+	}
+
 	private addModulesToImportDescriptions(importDescription: {
 		[name: string]: ImportDescription | ReexportDescription;
 	}) {
 		for (const name of Object.keys(importDescription)) {
 			const specifier = importDescription[name];
 			const id = this.resolvedIds[specifier.source].id;
-			specifier.module = this.graph.modulesById.get(id) as Module | ExternalModule;
+			specifier.module = this.graph.modulesById.get(id)!;
 		}
 	}
 
@@ -901,7 +911,7 @@ export default class Module {
 				this.imports.add(externalVariable);
 				mergedNamespaces.push(externalVariable);
 			} else if (module.syntheticNamedExports) {
-				const syntheticNamespace = module.getDefaultExport();
+				const syntheticNamespace = module.getSyntheticNamespace();
 				syntheticNamespace.include();
 				this.imports.add(syntheticNamespace);
 				mergedNamespaces.push(syntheticNamespace);

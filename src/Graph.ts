@@ -1,7 +1,6 @@
-import * as acorn from 'fork-acorn-optional-chaining';
+import * as acorn from 'acorn';
 import GlobalScope from './ast/scopes/GlobalScope';
 import { PathTracker } from './ast/utils/PathTracker';
-import Chunk from './Chunk';
 import ExternalModule from './ExternalModule';
 import Module from './Module';
 import { ModuleLoader, UnresolvedModule } from './ModuleLoader';
@@ -14,8 +13,9 @@ import {
 	SerializablePluginCache
 } from './rollup/types';
 import { BuildPhase } from './utils/buildPhase';
-import { getChunkAssignments } from './utils/chunkAssignment';
-import { analyseModuleExecution, sortByExecutionOrder } from './utils/executionOrder';
+import { errImplicitDependantIsNotIncluded, error } from './utils/error';
+import { analyseModuleExecution } from './utils/executionOrder';
+import { getId } from './utils/getId';
 import { PluginDriver } from './utils/PluginDriver';
 import relativeId from './utils/relativeId';
 import { timeEnd, timeStart } from './utils/timers';
@@ -25,11 +25,18 @@ function normalizeEntryModules(
 	entryModules: string[] | Record<string, string>
 ): UnresolvedModule[] {
 	if (Array.isArray(entryModules)) {
-		return entryModules.map(id => ({ fileName: null, name: null, id, importer: undefined }));
+		return entryModules.map(id => ({
+			fileName: null,
+			id,
+			implicitlyLoadedAfter: [],
+			importer: undefined,
+			name: null
+		}));
 	}
 	return Object.keys(entryModules).map(name => ({
 		fileName: null,
 		id: entryModules[name],
+		implicitlyLoadedAfter: [],
 		importer: undefined,
 		name
 	}));
@@ -40,6 +47,7 @@ export default class Graph {
 	cachedModules: Map<string, ModuleJSON>;
 	contextParse: (code: string, acornOptions?: acorn.Options) => acorn.Node;
 	deoptimizationTracker: PathTracker;
+	entryModules: Module[] = [];
 	moduleLoader: ModuleLoader;
 	modulesById = new Map<string, Module | ExternalModule>();
 	needsTreeshakingPass = false;
@@ -47,18 +55,14 @@ export default class Graph {
 	pluginDriver: PluginDriver;
 	scope: GlobalScope;
 	watchFiles: Record<string, true> = Object.create(null);
+	watchMode = false;
 
-	private entryModules: Module[] = [];
 	private externalModules: ExternalModule[] = [];
-	private manualChunkModulesByAlias: Record<string, Module[]> = {};
+	private implicitEntryModules: Module[] = [];
 	private modules: Module[] = [];
 	private pluginCache?: Record<string, SerializablePluginCache>;
 
-	constructor(
-		private readonly options: NormalizedInputOptions,
-		private readonly unsetOptions: Set<string>,
-		watcher: RollupWatcher | null
-	) {
+	constructor(private readonly options: NormalizedInputOptions, watcher: RollupWatcher | null) {
 		this.deoptimizationTracker = new PathTracker();
 		this.cachedModules = new Map();
 		if (options.cache !== false) {
@@ -79,74 +83,35 @@ export default class Graph {
 				...options
 			});
 
-		this.pluginDriver = new PluginDriver(this, options, options.plugins, this.pluginCache);
-
 		if (watcher) {
+			this.watchMode = true;
 			const handleChange = (id: string) => this.pluginDriver.hookSeqSync('watchChange', [id]);
 			watcher.on('change', handleChange);
 			watcher.once('restart', () => {
 				watcher.removeListener('change', handleChange);
 			});
 		}
-
+		this.pluginDriver = new PluginDriver(this, options, options.plugins, this.pluginCache);
 		this.scope = new GlobalScope();
 		this.acornParser = acorn.Parser.extend(...(options.acornInjectPlugins as any));
 		this.moduleLoader = new ModuleLoader(this, this.modulesById, this.options, this.pluginDriver);
 	}
 
-	async build(): Promise<Chunk[]> {
+	async build(): Promise<void> {
 		timeStart('generate module graph', 2);
 		await this.generateModuleGraph();
 		timeEnd('generate module graph', 2);
 
-		timeStart('link and order modules', 2);
+		timeStart('sort modules', 2);
 		this.phase = BuildPhase.ANALYSE;
-		this.linkAndOrderModules();
-		timeEnd('link and order modules', 2);
+		this.sortModules();
+		timeEnd('sort modules', 2);
 
 		timeStart('mark included statements', 2);
 		this.includeStatements();
 		timeEnd('mark included statements', 2);
 
-		timeStart('generate chunks', 2);
-		const chunks = this.generateChunks();
-		timeEnd('generate chunks', 2);
 		this.phase = BuildPhase.GENERATE;
-
-		return chunks;
-	}
-
-	generateChunks(): Chunk[] {
-		const chunks: Chunk[] = [];
-		if (this.options.preserveModules) {
-			for (const module of this.modules) {
-				if (
-					module.isIncluded() ||
-					module.isEntryPoint ||
-					module.includedDynamicImporters.length > 0
-				) {
-					const chunk = new Chunk([module], this.options, this.unsetOptions, this.modulesById);
-					chunk.entryModules = [module];
-					chunks.push(chunk);
-				}
-			}
-		} else {
-			for (const chunkModules of this.options.inlineDynamicImports
-				? [this.modules]
-				: getChunkAssignments(this.entryModules, this.manualChunkModulesByAlias)) {
-				sortByExecutionOrder(chunkModules);
-				chunks.push(new Chunk(chunkModules, this.options, this.unsetOptions, this.modulesById));
-			}
-		}
-
-		for (const chunk of chunks) {
-			chunk.link();
-		}
-		const facades: Chunk[] = [];
-		for (const chunk of chunks) {
-			facades.push(...chunk.generateFacades());
-		}
-		return [...chunks, ...facades];
 	}
 
 	getCache(): RollupCache {
@@ -186,27 +151,25 @@ export default class Graph {
 		}
 		return {
 			dynamicallyImportedIds,
-			dynamicImporters: foundModule.dynamicImporters,
+			dynamicImporters: foundModule.dynamicImporters.sort(),
 			hasModuleSideEffects: foundModule.moduleSideEffects,
 			id: foundModule.id,
+			implicitlyLoadedAfterOneOf:
+				foundModule instanceof Module ? Array.from(foundModule.implicitlyLoadedAfter, getId) : [],
+			implicitlyLoadedBefore:
+				foundModule instanceof Module ? Array.from(foundModule.implicitlyLoadedBefore, getId) : [],
 			importedIds,
-			importers: foundModule.importers,
+			importers: foundModule.importers.sort(),
 			isEntry: foundModule instanceof Module && foundModule.isEntryPoint,
 			isExternal: foundModule instanceof ExternalModule
 		};
 	};
 
 	private async generateModuleGraph(): Promise<void> {
-		const { manualChunks } = this.options;
-		[
-			{ entryModules: this.entryModules, manualChunkModulesByAlias: this.manualChunkModulesByAlias }
-		] = await Promise.all([
-			this.moduleLoader.addEntryModules(normalizeEntryModules(this.options.input), true),
-			typeof manualChunks === 'object' ? this.moduleLoader.addManualChunks(manualChunks) : null
-		]);
-		if (typeof manualChunks === 'function') {
-			this.moduleLoader.assignManualChunks(manualChunks);
-		}
+		({
+			entryModules: this.entryModules,
+			implicitEntryModules: this.implicitEntryModules
+		} = await this.moduleLoader.addEntryModules(normalizeEntryModules(this.options.input), true));
 		if (this.entryModules.length === 0) {
 			throw new Error('You must supply options.input to rollup');
 		}
@@ -220,7 +183,7 @@ export default class Graph {
 	}
 
 	private includeStatements() {
-		for (const module of this.entryModules) {
+		for (const module of [...this.entryModules, ...this.implicitEntryModules]) {
 			if (module.preserveSignature !== false) {
 				module.includeAllExports();
 			} else {
@@ -233,22 +196,30 @@ export default class Graph {
 				timeStart(`treeshaking pass ${treeshakingPass}`, 3);
 				this.needsTreeshakingPass = false;
 				for (const module of this.modules) {
-					if (module.isExecuted) module.include();
+					if (module.isExecuted) {
+						if (module.moduleSideEffects === 'no-treeshake') {
+							module.includeAllInBundle();
+						} else {
+							module.include();
+						}
+					}
 				}
 				timeEnd(`treeshaking pass ${treeshakingPass++}`, 3);
 			} while (this.needsTreeshakingPass);
 		} else {
-			// Necessary to properly replace namespace imports
 			for (const module of this.modules) module.includeAllInBundle();
 		}
-		// check for unused external imports
 		for (const externalModule of this.externalModules) externalModule.warnUnusedImports();
+		for (const module of this.implicitEntryModules) {
+			for (const dependant of module.implicitlyLoadedAfter) {
+				if (!(dependant.isEntryPoint || dependant.isIncluded())) {
+					error(errImplicitDependantIsNotIncluded(dependant));
+				}
+			}
+		}
 	}
 
-	private linkAndOrderModules() {
-		for (const module of this.modules) {
-			module.linkDependencies();
-		}
+	private sortModules() {
 		const { orderedModules, cyclePaths } = analyseModuleExecution(this.entryModules);
 		for (const cyclePath of cyclePaths) {
 			this.options.onwarn({

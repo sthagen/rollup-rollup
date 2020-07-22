@@ -89,8 +89,8 @@ export interface SourceDescription {
 	ast?: AcornNode;
 	code: string;
 	map?: SourceMapInput;
-	moduleSideEffects?: boolean | null;
-	syntheticNamedExports?: boolean;
+	moduleSideEffects?: boolean | 'no-treeshake' | null;
+	syntheticNamedExports?: boolean | string;
 }
 
 export interface TransformModuleJSON {
@@ -98,12 +98,12 @@ export interface TransformModuleJSON {
 	code: string;
 	// note if plugins use new this.cache to opt-out auto transform cache
 	customTransformCache: boolean;
-	moduleSideEffects: boolean | null;
+	moduleSideEffects: boolean | 'no-treeshake' | null;
 	originalCode: string;
 	originalSourcemap: ExistingDecodedSourceMap | null;
 	resolvedIds?: ResolvedIdMap;
 	sourcemapChain: DecodedSourceMapOrMissing[];
-	syntheticNamedExports: boolean | null;
+	syntheticNamedExports: boolean | string | null;
 	transformDependencies: string[];
 }
 
@@ -136,6 +136,7 @@ export interface EmittedAsset {
 export interface EmittedChunk {
 	fileName?: string;
 	id: string;
+	implicitlyLoadedAfterOneOf?: string[];
 	importer?: string;
 	name?: string;
 	preserveSignature?: PreserveEntrySignaturesOption;
@@ -153,8 +154,10 @@ export type EmitFile = (emittedFile: EmittedFile) => string;
 interface ModuleInfo {
 	dynamicallyImportedIds: string[];
 	dynamicImporters: string[];
-	hasModuleSideEffects: boolean;
+	hasModuleSideEffects: boolean | 'no-treeshake';
 	id: string;
+	implicitlyLoadedAfterOneOf: string[];
+	implicitlyLoadedBefore: string[];
 	importedIds: string[];
 	importers: string[];
 	isEntry: boolean;
@@ -197,13 +200,14 @@ export interface PluginContext extends MinimalPluginContext {
 
 export interface PluginContextMeta {
 	rollupVersion: string;
+	watchMode: boolean;
 }
 
 export interface ResolvedId {
 	external: boolean;
 	id: string;
-	moduleSideEffects: boolean;
-	syntheticNamedExports: boolean;
+	moduleSideEffects: boolean | 'no-treeshake';
+	syntheticNamedExports: boolean | string;
 }
 
 export interface ResolvedIdMap {
@@ -213,8 +217,8 @@ export interface ResolvedIdMap {
 interface PartialResolvedId {
 	external?: boolean;
 	id: string;
-	moduleSideEffects?: boolean | null;
-	syntheticNamedExports?: boolean;
+	moduleSideEffects?: boolean | 'no-treeshake' | null;
+	syntheticNamedExports?: boolean | string;
 }
 
 export type ResolveIdResult = string | false | null | undefined | PartialResolvedId;
@@ -474,6 +478,10 @@ export type InputOption = string | string[] | { [entryAlias: string]: string };
 export type ManualChunksOption = { [chunkAlias: string]: string[] } | GetManualChunk;
 export type ModuleSideEffectsOption = boolean | 'no-external' | string[] | HasModuleSideEffects;
 export type PreserveEntrySignaturesOption = false | 'strict' | 'allow-extension';
+export type SourcemapPathTransformOption = (
+	relativeSourcePath: string,
+	sourcemapPath: string
+) => string;
 
 export interface InputOptions {
 	acorn?: Object;
@@ -482,20 +490,23 @@ export interface InputOptions {
 	context?: string;
 	experimentalCacheExpiry?: number;
 	external?: ExternalOption;
+	/** @deprecated Use the "inlineDynamicImports" output option instead. */
 	inlineDynamicImports?: boolean;
 	input?: InputOption;
+	/** @deprecated Use the "manualChunks" output option instead. */
 	manualChunks?: ManualChunksOption;
 	moduleContext?: ((id: string) => string | null | undefined) | { [id: string]: string };
 	onwarn?: WarningHandlerWithDefault;
 	perf?: boolean;
 	plugins?: Plugin[];
 	preserveEntrySignatures?: PreserveEntrySignaturesOption;
+	/** @deprecated Use the "preserveModules" output option instead. */
 	preserveModules?: boolean;
 	preserveSymlinks?: boolean;
 	shimMissingExports?: boolean;
 	strictDeprecations?: boolean;
 	treeshake?: boolean | TreeshakingOptions;
-	watch?: WatcherOptions;
+	watch?: WatcherOptions | false;
 }
 
 export interface NormalizedInputOptions {
@@ -505,15 +516,18 @@ export interface NormalizedInputOptions {
 	context: string;
 	experimentalCacheExpiry: number;
 	external: IsExternal;
-	inlineDynamicImports: boolean;
+	/** @deprecated Use the "inlineDynamicImports" output option instead. */
+	inlineDynamicImports: boolean | undefined;
 	input: string[] | { [entryAlias: string]: string };
-	manualChunks: ManualChunksOption;
+	/** @deprecated Use the "manualChunks" output option instead. */
+	manualChunks: ManualChunksOption | undefined;
 	moduleContext: (id: string) => string;
 	onwarn: WarningHandler;
 	perf: boolean;
 	plugins: Plugin[];
 	preserveEntrySignatures: PreserveEntrySignaturesOption;
-	preserveModules: boolean;
+	/** @deprecated Use the "preserveModules" output option instead. */
+	preserveModules: boolean | undefined;
 	preserveSymlinks: boolean;
 	shimMissingExports: boolean;
 	strictDeprecations: boolean;
@@ -531,15 +545,15 @@ export interface OutputOptions {
 		define?: string;
 		id?: string;
 	};
-	assetFileNames?: string;
+	assetFileNames?: string | ((chunkInfo: PreRenderedAsset) => string);
 	banner?: string | (() => string | Promise<string>);
-	chunkFileNames?: string;
+	chunkFileNames?: string | ((chunkInfo: PreRenderedChunk) => string);
 	compact?: boolean;
 	// only required for bundle.write
 	dir?: string;
 	/** @deprecated Use the "renderDynamicImport" plugin hook instead. */
 	dynamicImportFunction?: string;
-	entryFileNames?: string;
+	entryFileNames?: string | ((chunkInfo: PreRenderedChunk) => string);
 	esModule?: boolean;
 	exports?: 'default' | 'named' | 'none' | 'auto';
 	extend?: boolean;
@@ -552,8 +566,10 @@ export interface OutputOptions {
 	globals?: GlobalsOption;
 	hoistTransitiveImports?: boolean;
 	indent?: string | boolean;
+	inlineDynamicImports?: boolean;
 	interop?: boolean;
 	intro?: string | (() => string | Promise<string>);
+	manualChunks?: ManualChunksOption;
 	minifyInternalExports?: boolean;
 	name?: string;
 	namespaceToStringTag?: boolean;
@@ -562,10 +578,11 @@ export interface OutputOptions {
 	paths?: OptionsPaths;
 	plugins?: OutputPlugin[];
 	preferConst?: boolean;
+	preserveModules?: boolean;
 	sourcemap?: boolean | 'inline' | 'hidden';
 	sourcemapExcludeSources?: boolean;
 	sourcemapFile?: string;
-	sourcemapPathTransform?: (sourcePath: string) => string;
+	sourcemapPathTransform?: SourcemapPathTransformOption;
 	strict?: boolean;
 	systemNullSetters?: boolean;
 }
@@ -575,14 +592,14 @@ export interface NormalizedOutputOptions {
 		define: string;
 		id?: string;
 	};
-	assetFileNames: string;
+	assetFileNames: string | ((chunkInfo: PreRenderedAsset) => string);
 	banner: () => string | Promise<string>;
-	chunkFileNames: string;
+	chunkFileNames: string | ((chunkInfo: PreRenderedChunk) => string);
 	compact: boolean;
 	dir: string | undefined;
 	/** @deprecated Use the "renderDynamicImport" plugin hook instead. */
 	dynamicImportFunction: string | undefined;
-	entryFileNames: string;
+	entryFileNames: string | ((chunkInfo: PreRenderedChunk) => string);
 	esModule: boolean;
 	exports: 'default' | 'named' | 'none' | 'auto';
 	extend: boolean;
@@ -594,8 +611,10 @@ export interface NormalizedOutputOptions {
 	globals: GlobalsOption;
 	hoistTransitiveImports: boolean;
 	indent: true | string;
+	inlineDynamicImports: boolean;
 	interop: boolean;
 	intro: () => string | Promise<string>;
+	manualChunks: ManualChunksOption;
 	minifyInternalExports: boolean;
 	name: string | undefined;
 	namespaceToStringTag: boolean;
@@ -604,10 +623,11 @@ export interface NormalizedOutputOptions {
 	paths: OptionsPaths;
 	plugins: OutputPlugin[];
 	preferConst: boolean;
+	preserveModules: boolean;
 	sourcemap: boolean | 'inline' | 'hidden';
 	sourcemapExcludeSources: boolean;
 	sourcemapFile: string | undefined;
-	sourcemapPathTransform: ((sourcePath: string) => string) | undefined;
+	sourcemapPathTransform: SourcemapPathTransformOption | undefined;
 	strict: boolean;
 	systemNullSetters: boolean;
 }
@@ -622,12 +642,16 @@ export interface SerializedTimings {
 	[label: string]: [number, number, number];
 }
 
-export interface OutputAsset {
+export interface PreRenderedAsset {
+	name: string | undefined;
+	source: string | Uint8Array;
+	type: 'asset';
+}
+
+export interface OutputAsset extends PreRenderedAsset {
 	fileName: string;
 	/** @deprecated Accessing "isAsset" on files in the bundle is deprecated, please use "type === \'asset\'" instead */
 	isAsset: true;
-	source: string | Uint8Array;
-	type: 'asset';
 }
 
 export interface RenderedModule {
@@ -638,26 +662,30 @@ export interface RenderedModule {
 }
 
 export interface PreRenderedChunk {
-	dynamicImports: string[];
 	exports: string[];
 	facadeModuleId: string | null;
-	imports: string[];
 	isDynamicEntry: boolean;
 	isEntry: boolean;
+	isImplicitEntry: boolean;
 	modules: {
 		[id: string]: RenderedModule;
 	};
 	name: string;
+	type: 'chunk';
 }
 
 export interface RenderedChunk extends PreRenderedChunk {
+	code?: string;
+	dynamicImports: string[];
 	fileName: string;
+	implicitlyLoadedBefore: string[];
+	imports: string[];
+	map?: SourceMap;
+	referencedFiles: string[];
 }
 
 export interface OutputChunk extends RenderedChunk {
 	code: string;
-	map?: SourceMap;
-	type: 'chunk';
 }
 
 export interface SerializablePluginCache {
@@ -726,7 +754,7 @@ export interface WatcherOptions {
 
 export interface RollupWatchOptions extends InputOptions {
 	output?: OutputOptions | OutputOptions[];
-	watch?: WatcherOptions;
+	watch?: WatcherOptions | false;
 }
 
 interface TypedEventEmitter<T> {

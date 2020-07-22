@@ -7,12 +7,12 @@ exports.compareError = compareError;
 exports.compareWarnings = compareWarnings;
 exports.deindent = deindent;
 exports.executeBundle = executeBundle;
-exports.extend = extend;
+exports.getObject = getObject;
 exports.loader = loader;
 exports.normaliseOutput = normaliseOutput;
 exports.runTestSuiteWithSamples = runTestSuiteWithSamples;
 exports.assertDirectoriesAreEqual = assertDirectoriesAreEqual;
-exports.assertStderrIncludes = assertStderrIncludes;
+exports.assertIncludes = assertIncludes;
 
 function normaliseError(error) {
 	delete error.stack;
@@ -67,6 +67,7 @@ function deindent(str) {
 function executeBundle(bundle, require) {
 	return bundle
 		.generate({
+			exports: 'auto',
 			format: 'cjs'
 		})
 		.then(({ output: [cjs] }) => {
@@ -79,15 +80,12 @@ function executeBundle(bundle, require) {
 		});
 }
 
-function extend(target) {
-	[].slice.call(arguments, 1).forEach(source => {
-		source &&
-			Object.keys(source).forEach(key => {
-				target[key] = source[key];
-			});
-	});
-
-	return target;
+function getObject(entries) {
+	const object = {};
+	for (const [key, value] of entries) {
+		object[key] = value;
+	}
+	return object;
 }
 
 function loadConfig(configFile) {
@@ -219,14 +217,14 @@ function assertFilesAreEqual(actualFiles, expectedFiles, dirs = []) {
 	});
 }
 
-function assertStderrIncludes(stderr, expected) {
+function assertIncludes(actual, expected) {
 	try {
 		assert.ok(
-			stderr.includes(expected),
-			`Could not find ${JSON.stringify(expected)} in ${JSON.stringify(stderr)}`
+			actual.includes(expected),
+			`${JSON.stringify(actual)}\nincludes\n${JSON.stringify(expected)}`
 		);
 	} catch (err) {
-		err.actual = stderr;
+		err.actual = actual;
 		err.expected = expected;
 		throw err;
 	}

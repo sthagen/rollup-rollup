@@ -1,10 +1,12 @@
+import Chunk from '../Chunk';
 import Graph from '../Graph';
 import Module from '../Module';
 import {
+	EmittedChunk,
 	FilePlaceholder,
 	NormalizedInputOptions,
 	OutputBundleWithPlaceholders,
-	PreserveEntrySignaturesOption,
+	PreRenderedAsset,
 	WarningHandler
 } from '../rollup/types';
 import { BuildPhase } from './buildPhase';
@@ -27,7 +29,7 @@ import { isPlainPathFragment } from './relativeId';
 import { makeUnique, renderNamePattern } from './renderNamePattern';
 
 interface OutputSpecificFileData {
-	assetFileNames: string;
+	assetFileNames: string | ((assetInfo: PreRenderedAsset) => string);
 	bundle: OutputBundleWithPlaceholders;
 }
 
@@ -38,18 +40,23 @@ function generateAssetFileName(
 ): string {
 	const emittedName = name || 'asset';
 	return makeUnique(
-		renderNamePattern(output.assetFileNames, 'output.assetFileNames', {
-			hash() {
-				const hash = createHash();
-				hash.update(emittedName);
-				hash.update(':');
-				hash.update(source);
-				return hash.digest('hex').substr(0, 8);
+		renderNamePattern(
+			output.assetFileNames,
+			'output.assetFileNames',
+			{
+				hash() {
+					const hash = createHash();
+					hash.update(emittedName);
+					hash.update(':');
+					hash.update(source);
+					return hash.digest('hex').substr(0, 8);
+				},
+				ext: () => extname(emittedName).substr(1),
+				extname: () => extname(emittedName),
+				name: () => emittedName.substr(0, emittedName.length - extname(emittedName).length)
 			},
-			ext: () => extname(emittedName).substr(1),
-			extname: () => extname(emittedName),
-			name: () => emittedName.substr(0, emittedName.length - extname(emittedName).length)
-		}),
+			() => ({ name, source, type: 'asset' })
+		),
 		output.bundle
 	);
 }
@@ -137,13 +144,17 @@ function getAssetFileName(file: ConsumedAsset, referenceId: string): string {
 	return file.fileName;
 }
 
-function getChunkFileName(file: ConsumedChunk): string {
-	const fileName = file.fileName || (file.module && file.module.facadeChunk!.id);
+function getChunkFileName(
+	file: ConsumedChunk,
+	facadeChunkByModule: Map<Module, Chunk> | null
+): string {
+	const fileName = file.fileName || (file.module && facadeChunkByModule?.get(file.module)?.id);
 	if (!fileName) return error(errChunkNotGeneratedForFileName(file.fileName || file.name));
 	return fileName;
 }
 
 export class FileEmitter {
+	private facadeChunkByModule: Map<Module, Chunk> | null = null;
 	private filesByReferenceId: Map<string, ConsumedFile>;
 	private output: OutputSpecificFileData | null = null;
 
@@ -194,7 +205,7 @@ export class FileEmitter {
 		const emittedFile = this.filesByReferenceId.get(fileReferenceId);
 		if (!emittedFile) return error(errFileReferenceIdNotFoundForFilename(fileReferenceId));
 		if (emittedFile.type === 'chunk') {
-			return getChunkFileName(emittedFile);
+			return getChunkFileName(emittedFile, this.facadeChunkByModule);
 		} else {
 			return getAssetFileName(emittedFile, fileReferenceId);
 		}
@@ -223,12 +234,14 @@ export class FileEmitter {
 
 	public setOutputBundle = (
 		outputBundle: OutputBundleWithPlaceholders,
-		assetFileNames: string
+		assetFileNames: string | ((assetInfo: PreRenderedAsset) => string),
+		facadeChunkByModule: Map<Module, Chunk>
 	): void => {
 		this.output = {
 			assetFileNames,
 			bundle: outputBundle
 		};
+		this.facadeChunkByModule = facadeChunkByModule;
 		for (const emittedFile of this.filesByReferenceId.values()) {
 			if (emittedFile.fileName) {
 				reserveFileNameInBundle(emittedFile.fileName, this.output.bundle, this.options.onwarn);
@@ -300,24 +313,8 @@ export class FileEmitter {
 			type: 'chunk'
 		};
 		this.graph.moduleLoader
-			.addEntryModules(
-				[
-					{
-						fileName: emittedChunk.fileName || null,
-						id: emittedChunk.id,
-						importer: emittedChunk.importer as string | undefined,
-						name: emittedChunk.name || null
-					}
-				],
-				false
-			)
-			.then(({ newEntryModules: [module] }) => {
-				consumedChunk.module = module;
-				const preserveSignature = emittedChunk.preserveSignature;
-				if (preserveSignature || preserveSignature === false) {
-					module.preserveSignature = preserveSignature as PreserveEntrySignaturesOption;
-				}
-			})
+			.emitChunk((emittedChunk as unknown) as EmittedChunk)
+			.then(module => (consumedChunk.module = module))
 			.catch(() => {
 				// Avoid unhandled Promise rejection as the error will be thrown later
 				// once module loading has finished
@@ -343,6 +340,7 @@ export class FileEmitter {
 		const options = this.options;
 		output.bundle[fileName] = {
 			fileName,
+			name: consumedFile.name,
 			get isAsset(): true {
 				warnDeprecation(
 					'Accessing "isAsset" on files in the bundle is deprecated, please use "type === \'asset\'" instead',

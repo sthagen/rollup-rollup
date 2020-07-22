@@ -35,11 +35,8 @@ export default { // can be an array (for multiple inputs)
 
   // advanced input options
   cache,
-  inlineDynamicImports,
-  manualChunks,
   onwarn,
   preserveEntrySignatures,
-  preserveModules,
   strictDeprecations,
 
   // danger zone
@@ -73,11 +70,14 @@ export default { // can be an array (for multiple inputs)
     extend,
     footer,
     hoistTransitiveImports,
+    inlineDynamicImports,
     interop,
     intro,
+    manualChunks,
     minifyInternalExports,
     outro,
     paths,
+    preserveModules,
     sourcemap,
     sourcemapExcludeSources,
     sourcemapFile,
@@ -104,7 +104,7 @@ export default { // can be an array (for multiple inputs)
     skipWrite,
     exclude,
     include
-  }
+  } | false
 };
 ```
 
@@ -342,7 +342,7 @@ Use the specified plugin. There are several ways to specify plugins here:
   rollup -i input.js -f es -p ./my-plugin.js
   ```
 
-  The file should export a plugin object or a function returning such an object.
+  The file should export a function returning a plugin object.
 - Via the name of a plugin that is installed in a local or global `node_modules` folder:
 
   ```
@@ -367,7 +367,7 @@ If you want to load more than one plugin, you can repeat the option or supply a 
 rollup -i input.js -f es -p node-resolve -p commonjs,json
 ```
 
-By default, plugins that export functions will be called with no argument to create the plugin. You can however pass a custom argument as well:
+By default, plugin functions be called with no argument to create the plugin. You can however pass a custom argument as well:
 
 ```
 rollup -i input.js -f es -p 'terser={output: {beautify: true, indent_level: 2}}'
@@ -381,7 +381,7 @@ Print the installed version number.
 
 Rebuild the bundle when its source files change on disk.
 
-_Note: While in watch mode, the `ROLLUP_WATCH` environment variable will be set to `"true"` by Rollup's command line interface and can be checked by plugins and other processes._
+_Note: While in watch mode, the `ROLLUP_WATCH` environment variable will be set to `"true"` by Rollup's command line interface and can be checked by other processes. Plugins should instead check [`this.meta.watchMode`](guide/en/#thismeta-rollupversion-string-watchmode-boolean), which is independent of the command line interface._
 
 #### `--silent`
 

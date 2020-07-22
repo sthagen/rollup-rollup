@@ -1,5 +1,5 @@
 import chokidar from 'chokidar';
-import color from 'colorette';
+import { bold, cyan, green, underline } from 'colorette';
 import dateTime from 'date-time';
 import fs from 'fs';
 import ms from 'pretty-ms';
@@ -81,7 +81,11 @@ export async function watch(command: any) {
 	const resetScreen = getResetScreen(configs!, isTTY);
 
 	function start(configs: MergedRollupOptions[]) {
-		watcher = rollup.watch(configs as any);
+		try {
+			watcher = rollup.watch(configs as any);
+		} catch (err) {
+			return handleError(err);
+		}
 
 		watcher.on('event', event => {
 			switch (event.code) {
@@ -92,7 +96,7 @@ export async function watch(command: any) {
 
 				case 'START':
 					if (!silent) {
-						resetScreen(color.underline(`rollup v${rollup.VERSION}`));
+						resetScreen(underline(`rollup v${rollup.VERSION}`));
 					}
 					break;
 
@@ -107,11 +111,7 @@ export async function watch(command: any) {
 										.join(', ');
 						}
 						stderr(
-							color.cyan(
-								`bundles ${color.bold(input)} → ${color.bold(
-									event.output.map(relativeId).join(', ')
-								)}...`
-							)
+							cyan(`bundles ${bold(input)} → ${bold(event.output.map(relativeId).join(', '))}...`)
 						);
 					}
 					break;
@@ -120,8 +120,8 @@ export async function watch(command: any) {
 					warnings.flush();
 					if (!silent)
 						stderr(
-							color.green(
-								`created ${color.bold(event.output.map(relativeId).join(', '))} in ${color.bold(
+							green(
+								`created ${bold(event.output.map(relativeId).join(', '))} in ${bold(
 									ms(event.duration)
 								)}`
 							)

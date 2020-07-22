@@ -50,7 +50,13 @@ const moduleAliases = {
 	entries: [
 		{ find: 'help.md', replacement: path.resolve('cli/help.md') },
 		{ find: 'package.json', replacement: path.resolve('package.json') },
-		{find: 'acorn', replacement: 'fork-acorn-optional-chaining'}
+		{
+			find: 'acorn-numeric-separator',
+			replacement: path.join(
+				__dirname,
+				'node_modules/acorn-numeric-separator/dist/acorn-numeric-separator.js'
+			)
+		}
 	]
 };
 
@@ -99,17 +105,19 @@ export default command => {
 			'util'
 		],
 		treeshake,
-		manualChunks: { rollup: ['src/node-entry.ts'] },
 		strictDeprecations: true,
 		output: {
 			banner,
 			chunkFileNames: 'shared/[name].js',
 			dir: 'dist',
 			entryFileNames: '[name]',
+			// TODO Only loadConfigFile is using default exports mode; this should be changed in Rollup@3
+			exports: 'auto',
 			externalLiveBindings: false,
 			format: 'cjs',
 			freeze: false,
 			interop: false,
+			manualChunks: { rollup: ['src/node-entry.ts'] },
 			sourcemap: true
 		}
 	};

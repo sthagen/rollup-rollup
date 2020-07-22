@@ -73,7 +73,7 @@ function getStringFromPath(path: PathWithPositions): string {
 export default class MemberExpression extends NodeBase implements DeoptimizableEntity, PatternNode {
 	computed!: boolean;
 	object!: ExpressionNode | Super;
-	optional?: boolean;
+	optional!: boolean;
 	property!: ExpressionNode;
 	propertyKey!: ObjectPathKey | null;
 	type!: NodeType.tMemberExpression;
@@ -258,17 +258,20 @@ export default class MemberExpression extends NodeBase implements DeoptimizableE
 	}
 
 	private disallowNamespaceReassignment() {
-		if (
-			this.object instanceof Identifier &&
-			this.scope.findVariable(this.object.name).isNamespace
-		) {
-			return this.context.error(
-				{
-					code: 'ILLEGAL_NAMESPACE_REASSIGNMENT',
-					message: `Illegal reassignment to import '${this.object.name}'`
-				},
-				this.start
-			);
+		if (this.object instanceof Identifier) {
+			const variable = this.scope.findVariable(this.object.name);
+			if (variable.isNamespace) {
+				if (this.variable) {
+					this.context.includeVariable(this.variable);
+				}
+				this.context.warn(
+					{
+						code: 'ILLEGAL_NAMESPACE_REASSIGNMENT',
+						message: `Illegal reassignment to import '${this.object.name}'`
+					},
+					this.start
+				);
+			}
 		}
 	}
 

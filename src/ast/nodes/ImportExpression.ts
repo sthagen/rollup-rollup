@@ -66,14 +66,14 @@ export default class Import extends NodeBase {
 	renderFinalResolution(
 		code: MagicString,
 		resolution: string,
-		namespaceExportName: string | false,
+		namespaceExportName: string | false | undefined,
 		options: NormalizedOutputOptions
 	) {
 		code.overwrite(this.source.start, this.source.end, resolution);
 		if (namespaceExportName) {
 			const _ = options.compact ? '' : ' ';
 			const s = options.compact ? '' : ';';
-			code.appendLeft(
+			code.prependLeft(
 				this.end,
 				`.then(function${_}(n)${_}{${_}return n.${namespaceExportName}${s}${_}})`
 			);

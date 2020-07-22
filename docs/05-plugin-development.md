@@ -93,38 +93,22 @@ Next Hook: [`resolveId`](guide/en/#resolveid) to resolve each entry point in par
 Called on each `rollup.rollup` build. This is the recommended hook to use when you need access to the options passed to `rollup.rollup()` as it takes the transformations by all [`options`](guide/en/#options) hooks into account and also contains the right default values for unset options.
 
 #### `load`
-Type: `(id: string) => string | null | { code: string, map?: string | SourceMap, ast? : ESTree.Program, moduleSideEffects?: boolean | null, syntheticNamedExports?: boolean | null }`<br>
+Type: `(id: string) => string | null | { code: string, map?: string | SourceMap, ast? : ESTree.Program, moduleSideEffects?: boolean | "no-treeshake" | null, syntheticNamedExports?: boolean | string | null }`<br>
 Kind: `async, first`<br>
 Previous Hook: [`resolveId`](guide/en/#resolveid) or [`resolveDynamicImport`](guide/en/#resolvedynamicimport) where the loaded id was resolved.<br>
 Next Hook: [`transform`](guide/en/#transform) to transform the loaded file.
 
 Defines a custom loader. Returning `null` defers to other `load` functions (and eventually the default behavior of loading from the file system). To prevent additional parsing overhead in case e.g. this hook already used `this.parse` to generate an AST for some reason, this hook can optionally return a `{ code, ast, map }` object. The `ast` must be a standard ESTree AST with `start` and `end` properties for each node. If the transformation does not move code, you can preserve existing sourcemaps by setting `map` to `null`. Otherwise you might need to generate the source map. See [the section on source code transformations](#source-code-transformations).
 
-If `false` is returned for `moduleSideEffects` and no other module imports anything from this module, then this module will not be included in the bundle without checking for actual side-effects inside the module. If `true` is returned, Rollup will use its default algorithm to include all statements in the module that have side-effects (such as modifying a global or exported variable). If `null` is returned or the flag is omitted, then `moduleSideEffects` will be determined by the first `resolveId` hook that resolved this module, the `treeshake.moduleSideEffects` option, or eventually default to `true`. The `transform` hook can override this.
+If `false` is returned for `moduleSideEffects` and no other module imports anything from this module, then this module will not be included in the bundle without checking for actual side-effects inside the module. If `true` is returned, Rollup will use its default algorithm to include all statements in the module that have side-effects (such as modifying a global or exported variable). If `"no-treeshake"` is returned, treeshaking will be turned off for this module and it will also be included in one of the generated chunks even if it is empty. If `null` is returned or the flag is omitted, then `moduleSideEffects` will be determined by the first `resolveId` hook that resolved this module, the `treeshake.moduleSideEffects` option, or eventually default to `true`. The `transform` hook can override this.
 
-If `true` is returned for `syntheticNamedExports`, this module will fallback the resolution of any missing named export to properties of the `default` export. The `transform` hook can override this. This option allows to have dynamic named exports that might not be declared in the module, such as in this example:
-
-**dep.js: (`{syntheticNamedExports: true}`)**
-
-```
-export default {
-  foo: 42,
-  bar: 'hello'
-}
-```
-
-**main.js: (entry point)**
-
-```js
-import { foo, bar } from './dep.js'
-console.log(foo, bar);
-```
+See [synthetic named exports](guide/en/#synthetic-named-exports) for the effect of the `syntheticNamedExports` option. If `null` is returned or the flag is omitted, then `syntheticNamedExports` will be determined by the first `resolveId` hook that resolved this module or eventually default to `false`. The `transform` hook can override this.
 
 You can use [`this.getModuleInfo`](guide/en/#thisgetmoduleinfomoduleid-string--moduleinfo) to find out the previous values of `moduleSideEffects` and `syntheticNamedExports` inside this hook.
 
 #### `options`
 Type: `(options: InputOptions) => InputOptions | null`<br>
-Kind: `sync, sequential`<br>
+Kind: `async, sequential`<br>
 Previous Hook: This is the first hook of the build phase.<br>
 Next Hook: [`buildStart`](guide/en/#buildstart)
 
@@ -150,7 +134,7 @@ In case a dynamic import is not passed a string as argument, this hook gets acce
 Note that the return value of this hook will not be passed to `resolveId` afterwards; if you need access to the static resolution algorithm, you can use [`this.resolve(source, importer)`](guide/en/#thisresolvesource-string-importer-string-options-skipself-boolean--promiseid-string-external-boolean--null) on the plugin context.
 
 #### `resolveId`
-Type: `(source: string, importer: string | undefined) => string | false | null | {id: string, external?: boolean, moduleSideEffects?: boolean | null, syntheticNamedExports?: boolean | null}`<br>
+Type: `(source: string, importer: string | undefined) => string | false | null | {id: string, external?: boolean, moduleSideEffects?: boolean | "no-treeshake" | null, syntheticNamedExports?: boolean | string | null}`<br>
 Kind: `async, first`<br>
 Previous Hook: [`buildStart`](guide/en/#buildstart) if we are resolving an entry point, [`transform`](guide/en/#transform) if we are resolving an import, or as fallback for [`resolveDynamicImport`](guide/en/#resolvedynamicimport). Additionally this hook can be triggered during the build phase from plugin hooks by calling [`this.emitFile`](guide/en/#thisemitfileemittedfile-emittedchunk--emittedasset--string) to emit an entry point or at any time by calling [`this.resolve`](guide/en/#thisresolvesource-string-importer-string-options-skipself-boolean--promiseid-string-external-boolean--null) to manually resolve an id.<br>
 Next Hook: [`load`](guide/en/#load) if the resolved id that has not yet been loaded, otherwise [`buildEnd`](guide/en/#buildend).
@@ -170,28 +154,12 @@ resolveId(source) {
 
 Relative ids, i.e. starting with `./` or `../`, will **not** be renormalized when returning an object. If you want this behaviour, return an absolute file system location as `id` instead.
 
-If `false` is returned for `moduleSideEffects` in the first hook that resolves a module id and no other module imports anything from this module, then this module will not be included without checking for actual side-effects inside the module. If `true` is returned, Rollup will use its default algorithm to include all statements in the module that have side-effects (such as modifying a global or exported variable). If `null` is returned or the flag is omitted, then `moduleSideEffects` will be determined by the `treeshake.moduleSideEffects` option or default to `true`. The `load` and `transform` hooks can override this.
+If `false` is returned for `moduleSideEffects` in the first hook that resolves a module id and no other module imports anything from this module, then this module will not be included without checking for actual side-effects inside the module. If `true` is returned, Rollup will use its default algorithm to include all statements in the module that have side-effects (such as modifying a global or exported variable). If `"no-treeshake"` is returned, treeshaking will be turned off for this module and it will also be included in one of the generated chunks even if it is empty. If `null` is returned or the flag is omitted, then `moduleSideEffects` will be determined by the `treeshake.moduleSideEffects` option or default to `true`. The `load` and `transform` hooks can override this.
 
-If `true` is returned for `syntheticNamedExports`, this module will fallback the resolution of any missing named export to properties of the `default` export. The `load` and `transform` hooks can override this. This option allows to have dynamic named exports that might not be declared in the module, such as in this example:
-
-**dep.js: (`{syntheticNamedExports: true}`)**
-
-```
-export default {
-  foo: 42,
-  bar: 'hello'
-}
-```
-
-**main.js: (entry point)**
-
-```js
-import { foo, bar } from './dep.js'
-console.log(foo, bar);
-```
+See [synthetic named exports](guide/en/#synthetic-named-exports) for the effect of the `syntheticNamedExports` option. If `null` is returned or the flag is omitted, then `syntheticNamedExports` will default to `false`. The `load` and `transform` hooks can override this.
 
 #### `transform`
-Type: `(code: string, id: string) => string | null | { code: string, map?: string | SourceMap, ast? : ESTree.Program, moduleSideEffects?: boolean | null, syntheticNamedExports?: boolean | null }`<br>
+Type: `(code: string, id: string) => string | null | { code: string, map?: string | SourceMap, ast? : ESTree.Program, moduleSideEffects?: boolean | "no-treeshake" | null, syntheticNamedExports?: boolean | string | null }`<br>
 Kind: `async, sequential`<br>
 Previous Hook: [`load`](guide/en/#load) where the currently handled file was loaded.<br>
 NextHook: [`resolveId`](guide/en/#resolveid) and [`resolveDynamicImport`](guide/en/#resolvedynamicimport) to resolve all discovered static and dynamic imports in parallel if present, otherwise [`buildEnd`](guide/en/#buildend).
@@ -200,27 +168,11 @@ Can be used to transform individual modules. To prevent additional parsing overh
 
 Note that in watch mode, the result of this hook is cached when rebuilding and the hook is only triggered again for a module `id` if either the `code` of the module has changed or a file has changed that was added via `this.addWatchFile` the last time the hook was triggered for this module.
 
-If `false` is returned for `moduleSideEffects` and no other module imports anything from this module, then this module will not be included without checking for actual side-effects inside the module. If `true` is returned, Rollup will use its default algorithm to include all statements in the module that have side-effects (such as modifying a global or exported variable). If `null` is returned or the flag is omitted, then `moduleSideEffects` will be determined by the first `resolveId` hook that resolved this module, the `treeshake.moduleSideEffects` option, or eventually default to `true`.
+If `false` is returned for `moduleSideEffects` and no other module imports anything from this module, then this module will not be included without checking for actual side-effects inside the module. If `true` is returned, Rollup will use its default algorithm to include all statements in the module that have side-effects (such as modifying a global or exported variable). If `"no-treeshake"` is returned, treeshaking will be turned off for this module and it will also be included in one of the generated chunks even if it is empty. If `null` is returned or the flag is omitted, then `moduleSideEffects` will be determined by the `load` hook that loaded this module, the first `resolveId` hook that resolved this module, the `treeshake.moduleSideEffects` option, or eventually default to `true`.
 
-If `true` is returned for `syntheticNamedExports`, this module will fallback the resolution of any missing named export to properties of the `default` export. This option allows to have dynamic named exports that might not be declared in the module, such as in this example:
+See [synthetic named exports](guide/en/#synthetic-named-exports) for the effect of the `syntheticNamedExports` option. If `null` is returned or the flag is omitted, then `syntheticNamedExports` will be determined by the `load` hook that loaded this module, the first `resolveId` hook that resolved this module, the `treeshake.moduleSideEffects` option, or eventually default to `false`.
 
-**dep.js: (`{syntheticNamedExports: true}`)**
-
-```
-export default {
-  foo: 42,
-  bar: 'hello'
-}
-```
-
-**main.js: (entry point)**
-
-```js
-import { foo, bar } from './dep.js'
-console.log(foo, bar);
-```
-
-You can use [`this.getModuleInfo`](guide/en/#thisgetmoduleinfomoduleid-string--moduleinfo) to find out the previous value of `moduleSideEffects` inside this hook.
+You can use [`this.getModuleInfo`](guide/en/#thisgetmoduleinfomoduleid-string--moduleinfo) to find out the previous values of `moduleSideEffects` and `syntheticNamedExports` inside this hook.
 
 #### `watchChange`
 Type: `(id: string) => void`<br>
@@ -236,12 +188,12 @@ Output generation hooks can provide information about a generated bundle and mod
 The first hook of the output generation phase is [outputOptions](guide/en/#outputoptions), the last one is either [generateBundle](guide/en/#generatebundle) if the output was successfully generated via `bundle.generate(...)`, [writeBundle](guide/en/#writebundle) if the output was successfully generated via `bundle.write(...)`, or [renderError](guide/en/#rendererror) if an error occurred at any time during the output generation.
 
 #### `augmentChunkHash`
-Type: `(preRenderedChunk: PreRenderedChunk) => string`<br>
+Type: `(chunkInfo: ChunkInfo) => string`<br>
 Kind: `sync, sequential`<br>
 Previous Hook: [`renderDynamicImport`](guide/en/#renderdynamicimport) for each dynamic import expression.<br>
 Next Hook: [`resolveFileUrl`](guide/en/#resolvefileurl) for each use of `import.meta.ROLLUP_FILE_URL_referenceId` and [`resolveImportMeta`](guide/en/#resolveimportmeta) for all other accesses to `import.meta`.
 
-Can be used to augment the hash of individual chunks. Called for each Rollup output chunk. Returning a falsy value will not modify the hash. Truthy values will be passed to [`hash.update`](https://nodejs.org/dist/latest-v12.x/docs/api/crypto.html#crypto_hash_update_data_inputencoding).
+Can be used to augment the hash of individual chunks. Called for each Rollup output chunk. Returning a falsy value will not modify the hash. Truthy values will be passed to [`hash.update`](https://nodejs.org/dist/latest-v12.x/docs/api/crypto.html#crypto_hash_update_data_inputencoding). The `chunkInfo` is a reduced version of the one in [`generateBundle`](guide/en/#generatebundle) without properties that rely on file names.
 
 The following plugin will invalidate the hash of chunk `foo` with the timestamp of the last build:
 
@@ -282,6 +234,7 @@ Called at the end of `bundle.generate()` or immediately before the files are wri
 // AssetInfo
 {
   fileName: string,
+  name?: string,
   source: string | Uint8Array,
   type: 'asset',
 }
@@ -293,9 +246,11 @@ Called at the end of `bundle.generate()` or immediately before the files are wri
   exports: string[],
   facadeModuleId: string | null,
   fileName: string,
+  implicitlyLoadedBefore: string[],
   imports: string[],
   isDynamicEntry: boolean,
   isEntry: boolean,
+  isImplicitEntry: boolean,
   map: SourceMap | null,
   modules: {
     [id: string]: {
@@ -306,6 +261,7 @@ Called at the end of `bundle.generate()` or immediately before the files are wri
     },
   },
   name: string,
+  referencedFiles: string[],
   type: 'chunk',
 }
 ```
@@ -500,18 +456,19 @@ Emits a new file that is included in the build output and returns a `referenceId
 {
   type: 'chunk',
   id: string,
+  name?: string,
+  fileName?: string,
+  implicitlyLoadedAfterOneOf?: string[],
   importer?: string,
   preserveSignature?: 'strict' | 'allow-extension' | false,
-  name?: string,
-  fileName?: string
 }
 
 // EmittedAsset
 {
   type: 'asset',
-  source?: string | Uint8Array,
   name?: string,
-  fileName?: string
+  fileName?: string,
+  source?: string | Uint8Array
 }
 ```
 
@@ -524,6 +481,65 @@ The generated code that replaces `import.meta.ROLLUP_FILE_URL_referenceId` can b
 If the `type` is *`chunk`*, then this emits a new chunk with the given module `id` as entry point. To resolve it, the `id` will be passed through build hooks just like regular entry points, starting with [`resolveId`](guide/en/#resolveid). If an `importer` is provided, this acts as the second parameter of `resolveId` and is important to properly resolve relative paths. If it is not provided, paths will be resolved relative to the current working directory. If a value for `preserveSignature` is provided, this will override [`preserveEntrySignatures`](guide/en/#preserveentrysignatures) for this particular chunk.
 
 This will not result in duplicate modules in the graph, instead if necessary, existing chunks will be split or a facade chunk with reexports will be created. Chunks with a specified `fileName` will always generate separate chunks while other emitted chunks may be deduplicated with existing chunks even if the `name` does not match. If such a chunk is not deduplicated, the [`output.chunkFileNames`](guide/en/#outputchunkfilenames) name pattern will be used.
+
+By default, Rollup assumes that emitted chunks are executed independent of other entry points, possibly even before any other code is executed. This means that if an emitted chunk shares a dependency with an existing entry point, Rollup will create an additional chunk for dependencies that are shared between those entry points. Providing a non-empty array of module ids for `implicitlyLoadedAfterOneOf` will change that behaviour by giving Rollup additional information to prevent this in some cases. Those ids will be resolved the same way as the `id` property, respecting the `importer` property if it is provided. Rollup will now assume that the emitted chunk is only executed if at least one of the entry points that lead to one of the ids in `implicitlyLoadedAfterOneOf` being loaded has already been executed, creating the same chunks as if the newly emitted chunk was only reachable via dynamic import from the modules in `implicitlyLoadedAfterOneOf`. Here is an example that uses this to create a simple HTML file with several scripts, creating optimized chunks to respect their execution order:
+
+```js
+// rollup.config.js
+function generateHtml() {
+  let ref1, ref2, ref3;
+  return {
+    buildStart() {
+      ref1 = this.emitFile({
+        type: 'chunk',
+        id: 'src/entry1'
+      });
+      ref2 = this.emitFile({
+        type: 'chunk',
+        id: 'src/entry2',
+        implicitlyLoadedAfterOneOf: ['src/entry1']
+      });
+      ref3 = this.emitFile({
+        type: 'chunk',
+        id: 'src/entry3',
+        implicitlyLoadedAfterOneOf: ['src/entry2']
+      });
+    },
+    generateBundle() {
+      this.emitFile({type: 'asset', fileName: 'index.html', source: `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>Title</title>
+       </head>
+      <body>
+        <script src="${this.getFileName(ref1)}" type="module"></script>
+        <script src="${this.getFileName(ref2)}" type="module"></script>
+        <script src="${this.getFileName(ref3)}" type="module"></script>
+      </body>
+      </html>
+      `})
+    }
+  };
+}
+
+export default {
+  input: [],
+  preserveEntrySignatures: false,
+  plugins: [
+    generateHtml(),
+  ],
+  output: {
+    format: 'es',
+    dir: 'dist'
+  }
+};
+```
+
+If there are no dynamic imports, this will create exactly three chunks where the first chunk contains all dependencies of `src/entry1`, the second chunk contains only the dependencies of `src/entry2` that are not contained in the first chunk, importing those from the first chunk, and again the same for the third chunk.
+
+Note that even though any module id can be used in `implicitlyLoadedAfterOneOf`, Rollup will throw an error if such an id cannot be uniquely associated with a chunk, e.g. because the `id` cannot be reached implicitly or explicitly from the existing static entry points, or because the file is completely tree-shaken. Using only entry points, either defined by the user or of previously emitted chunks, will always work, though.
 
 If the `type` is *`asset`*, then this emits an arbitrary new file with the given `source` as content. It is possible to defer setting the `source` via [`this.setAssetSource(assetReferenceId, source)`](guide/en/#thissetassetsourceassetreferenceid-string-source-string--uint8array--void) to a later time to be able to reference a file during the build phase while setting the source separately for each output during the generate phase. Assets with a specified `fileName` will always generate separate files while other emitted assets may be deduplicated with existing assets if they have the same source even if the `name` does not match. If such an asset is not deduplicated, the [`output.assetFileNames`](guide/en/#outputassetfilenames) name pattern will be used.
 
@@ -557,20 +573,27 @@ Returns additional information about the module in question in the form
 {
   id: string, // the id of the module, for convenience
   isEntry: boolean, // is this a user- or plugin-defined entry point
-  isExternal: boolean, // for external modules that are not included in the graph
+  isExternal: boolean, // for external modules that are referenced but not included in the graph
   importedIds: string[], // the module ids statically imported by this module
   importers: string[], // the ids of all modules that statically import this module
   dynamicallyImportedIds: string[], // the module ids imported by this module via dynamic import()
   dynamicImporters: string[], // the ids of all modules that import this module via dynamic import()
-  hasModuleSideEffects: boolean // are imports of this module included if nothing is imported from it
+  implicitlyLoadedAfterOneOf: string[], // implicit relationships, declared via this.emitChunk
+  implicitlyLoadedBefore: string[], // implicit relationships, declared via this.emitChunk
+  hasModuleSideEffects: boolean | "no-treeshake" // are imports of this module included if nothing is imported from it
 }
 ```
 
 If the module id cannot be found, an error is thrown.
 
-#### `this.meta: {rollupVersion: string}`
+#### `this.meta: {rollupVersion: string, watchMode: boolean}`
 
-An `Object` containing potentially useful Rollup metadata. `meta` is the only context property accessible from the [`options`](guide/en/#options) hook.
+An object containing potentially useful Rollup metadata:
+
+- `rollupVersion`: The currently running version of Rollup as define in `package.json`.
+- `watchMode`: `true` if Rollup was started via `rollup.watch(...)` or from the command line with `--watch`, `false` otherwise.
+
+`meta` is the only context property accessible from the [`options`](guide/en/#options) hook.
 
 #### `this.parse(code: string, acornOptions?: AcornOptions) => ESTree.Program`
 
@@ -789,3 +812,36 @@ return {
 
 If you create a plugin that you think would be useful to others, please publish
 it to NPM and add submit it to https://github.com/rollup/awesome!
+
+### Synthetic named exports
+It is possible to designate a fallback export for missing exports by setting the `syntheticNamedExports` option for a module in the [`resolveId`](guide/en/#resolveid), [`load`](guide/en/#load) or [`transform`](guide/en/#transform) hook. If a string value is used for `syntheticNamedExports`, this module will fallback the resolution of any missing named exports to properties of the named export of the given name:
+
+**dep.js: (`{syntheticNamedExports: '__synthetic'}`)**
+
+```
+export const foo = 'explicit';
+export const __synthetic = {
+  foo: 'foo',
+  bar: 'bar'
+}
+```
+
+**main.js:**
+
+```js
+import { foo, bar, baz, __synthetic } from './dep.js'
+
+// logs "explicit" as non-synthetic exports take precedence
+console.log(foo);
+
+// logs "bar", picking the property from __synthetic
+console.log(bar);
+
+// logs "undefined"
+console.log(baz);
+
+// logs "{foo:'foo',bar:'bar'}"
+console.log(__synthetic);
+```
+
+When used as an entry point, only explicit exports will be exposed. The synthetic fallback export, i.e. `__synthetic` in the example, will not be exposed for string values of `syntheticNamedExports`. However if the value is `true`, the default export will be exposed. This is the only notable difference between `syntheticNamedExports: true` and `syntheticNamedExports: 'default'`.
