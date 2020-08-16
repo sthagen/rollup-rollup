@@ -248,6 +248,7 @@ Called at the end of `bundle.generate()` or immediately before the files are wri
   fileName: string,
   implicitlyLoadedBefore: string[],
   imports: string[],
+  importedBindings: {[imported: string]: string[]},
   isDynamicEntry: boolean,
   isEntry: boolean,
   isImplicitEntry: boolean,
@@ -350,6 +351,8 @@ const plugin = {
   }
 };
 ```
+
+Note that when this hook rewrites dynamic imports in non-ES formats, no interop code to make sure that e.g. the default export is available as `.default` is generated. It is the responsibility of the plugin to make sure the rewritten dynamic import returns a Promise that resolves to a proper namespace object.
 
 #### `renderError`
 Type: `(error: Error) => void`<br>

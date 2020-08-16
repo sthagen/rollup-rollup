@@ -1,5 +1,83 @@
 # rollup changelog
 
+## 2.26.2
+*2020-08-16*
+
+### Bug Fixes
+* Fix a situation where line-breaks in a simplified conditional expression could result in broken code (#3732)
+
+### Pull Requests
+* [#3732](https://github.com/rollup/rollup/pull/3732): Prevent unintended ASI for nested conditionals (@lukastaegert)
+
+## 2.26.1
+*2020-08-16*
+
+### Bug Fixes
+* Correctly render external namespace imports when only generating SystemJS output (#3731)
+
+### Pull Requests
+* [#3731](https://github.com/rollup/rollup/pull/3731): Render system namespace import (@sastan and @lukastaegert)
+
+## 2.26.0
+*2020-08-15*
+
+### Features
+* Add a new entry `importedBindings` to the bundle information to list bindings per dependency (#3722)
+
+### Bug Fixes
+* Do not render an invalid UMD wrapper when no bindings are imported from a dependency (#3724)
+* Avoid situations where removing the `else` branch from an `if` statement might catch the `else` branch from another one (#3725)
+
+### Pull Requests
+* [#3722](https://github.com/rollup/rollup/pull/3722): Add import specifiers to bundle information (@lukastaegert)
+* [#3724](https://github.com/rollup/rollup/pull/3724): Fix missing variables for UMD and IIFE builds (@lukastaegert)
+* [#3725](https://github.com/rollup/rollup/pull/3725): Do not entirely remove else branch if another else branch might accidentally be referenced (@lukastaegert)
+
+## 2.25.0
+*2020-08-14*
+
+### Features
+* Add `--failAfterWarnings` CLI flag that will complete builds with warnings but return an error at the end (#3712)
+
+### Pull Requests
+* [#3712](https://github.com/rollup/rollup/pull/3712): Implement `--failAfterWarnings` flag (@tjenkinson)
+
+## 2.24.0
+*2020-08-13*
+
+### Features
+* Allow defining interop per dependency via a function (#3710)
+* Support interop "auto" as a more compatible version of "true" (#3710)
+* Support interop "default" and "esModule" to avoid unnecessary interop helpers (#3710)
+* Support interop "defaultOnly" for simplified helpers and Node ESM interop compatible output (#3710)
+* Respect interop option for external dynamic imports (#3710)
+* Support live-bindings for external default imports in non-ES formats unless "externalLiveBindings" is "false" (#3710)
+* Use shared default interop helpers for AMD, UMD and IIFE formats (#3710)
+* Avoid unnecessarily deconflicted module variables in non-ES formats (#3710)
+* Freeze generated interop namespace objects (#3710)
+* Always mark interop helpers as pure (#3710)
+* Avoid default export interop if there is already an interop namespace object (#3710)
+* Sort all `require` statements to the top in CommonJS output for easier back-transpilation to ES modules by other tools (#3710)
+
+### Bug Fixes
+* Handle accessing `super` in static class fields (#3720)
+* Deconflict the names of helper variables introduced for interop (#3710)
+* Generate proper namespace objects for static namespace imports in non-ES formats (#3710)
+* Do not add unused interop helpers when using the renderDynamicImport hook (#3710)
+
+### Pull Requests
+* [#3710](https://github.com/rollup/rollup/pull/3710): Rework interop handling (@lukastaegert)
+* [#3720](https://github.com/rollup/rollup/pull/3720): Handle super in static class fields (@lukastaegert)
+
+## 2.23.1
+*2020-08-07*
+
+### Bug Fixes
+* Fix an issue where dynamically importing an entry point could return a malformed namespace for CJS and AMD formats (#3709)
+
+### Pull Requests
+* [#3709](https://github.com/rollup/rollup/pull/3709): Properly construct namespace when dynamically importing chunks with facades in default export mode (@lukastaegert)
+
 ## 2.23.0
 *2020-07-23*
 
@@ -31,7 +109,7 @@
 *2020-07-18*
 
 ### Features
-* Allow resolving snythetic named exports via an arbitrary export name (#3657)
+* Allow resolving synthetic named exports via an arbitrary export name (#3657)
 * Display a warning when the user does not explicitly select an export mode and would generate a chunk with default export mode when targeting CommonJS (#3657)
 
 ### Pull Requests
