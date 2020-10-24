@@ -22,6 +22,7 @@ import { timeEnd, timeStart } from './utils/timers';
 
 export default class Bundle {
 	private facadeChunkByModule = new Map<Module, Chunk>();
+	private includedNamespaces = new Set<Module>();
 
 	constructor(
 		private readonly outputOptions: NormalizedOutputOptions,
@@ -202,6 +203,7 @@ export default class Bundle {
 				this.graph.modulesById,
 				chunkByModule,
 				this.facadeChunkByModule,
+				this.includedNamespaces,
 				alias
 			);
 			chunks.push(chunk);
@@ -265,7 +267,7 @@ function getIncludedModules(modulesById: Map<string, Module | ExternalModule>): 
 	return [...modulesById.values()].filter(
 		module =>
 			module instanceof Module &&
-			(module.isIncluded() || module.isEntryPoint || module.includedDynamicImporters.length > 0)
+			(module.isIncluded() || module.info.isEntry || module.includedDynamicImporters.length > 0)
 	) as Module[];
 }
 

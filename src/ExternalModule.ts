@@ -1,5 +1,11 @@
 import ExternalVariable from './ast/variables/ExternalVariable';
-import { NormalizedInputOptions, NormalizedOutputOptions } from './rollup/types';
+import {
+	CustomPluginOptions,
+	ModuleInfo,
+	NormalizedInputOptions,
+	NormalizedOutputOptions
+} from './rollup/types';
+import { EMPTY_ARRAY } from './utils/blank';
 import { makeLegal } from './utils/identifierHelpers';
 import { isAbsolute, normalize, relative } from './utils/path';
 
@@ -10,9 +16,8 @@ export default class ExternalModule {
 	dynamicImporters: string[] = [];
 	execIndex: number;
 	exportedVariables: Map<ExternalVariable, string>;
-	id: string;
 	importers: string[] = [];
-	moduleSideEffects: boolean | 'no-treeshake';
+	info: ModuleInfo;
 	mostCommonSuggestion = 0;
 	namespaceVariableName = '';
 	nameSuggestions: { [name: string]: number };
@@ -25,19 +30,36 @@ export default class ExternalModule {
 
 	constructor(
 		private readonly options: NormalizedInputOptions,
-		id: string,
-		moduleSideEffects: boolean | 'no-treeshake'
+		public readonly id: string,
+		hasModuleSideEffects: boolean | 'no-treeshake',
+		meta: CustomPluginOptions
 	) {
-		this.id = id;
 		this.execIndex = Infinity;
-		this.moduleSideEffects = moduleSideEffects;
-
-		const parts = id.split(/[\\/]/);
-		this.suggestedVariableName = makeLegal(parts.pop()!);
-
+		this.suggestedVariableName = makeLegal(id.split(/[\\/]/).pop()!);
 		this.nameSuggestions = Object.create(null);
 		this.declarations = Object.create(null);
 		this.exportedVariables = new Map();
+
+		const module = this;
+		this.info = {
+			ast: null,
+			code: null,
+			dynamicallyImportedIds: EMPTY_ARRAY,
+			get dynamicImporters() {
+				return module.dynamicImporters.sort();
+			},
+			hasModuleSideEffects,
+			id,
+			implicitlyLoadedAfterOneOf: EMPTY_ARRAY,
+			implicitlyLoadedBefore: EMPTY_ARRAY,
+			importedIds: EMPTY_ARRAY,
+			get importers() {
+				return module.importers.sort();
+			},
+			isEntry: false,
+			isExternal: true,
+			meta
+		};
 	}
 
 	getVariableForExportName(name: string): ExternalVariable {

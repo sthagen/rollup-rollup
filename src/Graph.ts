@@ -15,7 +15,6 @@ import {
 import { BuildPhase } from './utils/buildPhase';
 import { errImplicitDependantIsNotIncluded, error } from './utils/error';
 import { analyseModuleExecution } from './utils/executionOrder';
-import { getId } from './utils/getId';
 import { PluginDriver } from './utils/PluginDriver';
 import relativeId from './utils/relativeId';
 import { timeEnd, timeStart } from './utils/timers';
@@ -77,9 +76,9 @@ export default class Graph {
 				for (const key of Object.keys(cache)) cache[key][0]++;
 			}
 		}
-		this.contextParse = (code: string, options: acorn.Options = {}) =>
+		this.contextParse = (code: string, options: Partial<acorn.Options> = {}) =>
 			this.acornParser.parse(code, {
-				...this.options.acorn,
+				...(this.options.acorn as acorn.Options),
 				...options
 			});
 
@@ -132,37 +131,10 @@ export default class Graph {
 		};
 	}
 
-	getModuleInfo = (moduleId: string): ModuleInfo => {
+	getModuleInfo = (moduleId: string): ModuleInfo | null => {
 		const foundModule = this.modulesById.get(moduleId);
-		if (foundModule == null) {
-			throw new Error(`Unable to find module ${moduleId}`);
-		}
-		const importedIds: string[] = [];
-		const dynamicallyImportedIds: string[] = [];
-		if (foundModule instanceof Module) {
-			for (const source of foundModule.sources) {
-				importedIds.push(foundModule.resolvedIds[source].id);
-			}
-			for (const { resolution } of foundModule.dynamicImports) {
-				if (resolution instanceof Module || resolution instanceof ExternalModule) {
-					dynamicallyImportedIds.push(resolution.id);
-				}
-			}
-		}
-		return {
-			dynamicallyImportedIds,
-			dynamicImporters: foundModule.dynamicImporters.sort(),
-			hasModuleSideEffects: foundModule.moduleSideEffects,
-			id: foundModule.id,
-			implicitlyLoadedAfterOneOf:
-				foundModule instanceof Module ? Array.from(foundModule.implicitlyLoadedAfter, getId) : [],
-			implicitlyLoadedBefore:
-				foundModule instanceof Module ? Array.from(foundModule.implicitlyLoadedBefore, getId) : [],
-			importedIds,
-			importers: foundModule.importers.sort(),
-			isEntry: foundModule instanceof Module && foundModule.isEntryPoint,
-			isExternal: foundModule instanceof ExternalModule
-		};
+		if (!foundModule) return null;
+		return foundModule.info;
 	};
 
 	private async generateModuleGraph(): Promise<void> {
@@ -185,7 +157,7 @@ export default class Graph {
 	private includeStatements() {
 		for (const module of [...this.entryModules, ...this.implicitEntryModules]) {
 			if (module.preserveSignature !== false) {
-				module.includeAllExports();
+				module.includeAllExports(false);
 			} else {
 				markModuleAndImpureDependenciesAsExecuted(module);
 			}
@@ -197,7 +169,7 @@ export default class Graph {
 				this.needsTreeshakingPass = false;
 				for (const module of this.modules) {
 					if (module.isExecuted) {
-						if (module.moduleSideEffects === 'no-treeshake') {
+						if (module.info.hasModuleSideEffects === 'no-treeshake') {
 							module.includeAllInBundle();
 						} else {
 							module.include();
@@ -212,7 +184,7 @@ export default class Graph {
 		for (const externalModule of this.externalModules) externalModule.warnUnusedImports();
 		for (const module of this.implicitEntryModules) {
 			for (const dependant of module.implicitlyLoadedAfter) {
-				if (!(dependant.isEntryPoint || dependant.isIncluded())) {
+				if (!(dependant.info.isEntry || dependant.isIncluded())) {
 					error(errImplicitDependantIsNotIncluded(dependant));
 				}
 			}

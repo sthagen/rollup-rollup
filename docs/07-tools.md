@@ -74,7 +74,7 @@ Some libraries expose ES modules that you can import as-is — `the-answer` is o
 
 The [@rollup/plugin-commonjs](https://github.com/rollup/plugins/tree/master/packages/commonjs) plugin does exactly that.
 
-Note that `@rollup/plugin-commonjs` should go *before* other plugins that transform your modules — this is to prevent other plugins from making changes that break the CommonJS detection.
+Note that most of the times `@rollup/plugin-commonjs` should go *before* other plugins that transform your modules — this is to prevent other plugins from making changes that break the CommonJS detection. An exception for this rule is the Babel plugin, if you're using it then place it before the commonjs one.
 
 
 ### Peer dependencies
@@ -166,14 +166,12 @@ Before Babel will actually compile your code, it needs to be configured. Create 
 ```json
 {
   "presets": [
-    ["@babel/env", {"modules": false}]
+    "@babel/env"
   ]
 }
 ```
 
-There are a few unusual elements to this setup. First, we're setting "modules": false, otherwise Babel will convert our modules to CommonJS before Rollup gets a chance to do its thing, causing it to fail.
-
-Secondly, we're putting our `.babelrc.json` file in `src`, rather than the project root. This allows us to have a different `.babelrc.json` for things like tests, if we need that later – See the [Babel documentation](https://babeljs.io/docs/en/config-files#project-wide-configuration) for more information on both project wide and file relative configuration. 
+We're putting our `.babelrc.json` file in `src`, rather than the project root. This allows us to have a different `.babelrc.json` for things like tests, if we need that later – See the [Babel documentation](https://babeljs.io/docs/en/config-files#project-wide-configuration) for more information on both project wide and file relative configuration. 
 
 Now, before we run rollup, we need to install
 [`babel-core`](https://babeljs.io/docs/en/babel-core)

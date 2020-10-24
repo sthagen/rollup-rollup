@@ -3,24 +3,23 @@ define(['module', 'require', 'external'], function (module, require, external) {
 	function _interopDefaultLegacy (e) { return e && typeof e === 'object' && 'default' in e ? e : { 'default': e }; }
 
 	function _interopNamespace(e) {
-		if (e && e.__esModule) { return e; } else {
-			var n = Object.create(null);
-			if (e) {
-				Object.keys(e).forEach(function (k) {
-					if (k !== 'default') {
-						var d = Object.getOwnPropertyDescriptor(e, k);
-						Object.defineProperty(n, k, d.get ? d : {
-							enumerable: true,
-							get: function () {
-								return e[k];
-							}
-						});
-					}
-				});
-			}
-			n['default'] = e;
-			return Object.freeze(n);
+		if (e && e.__esModule) return e;
+		var n = Object.create(null);
+		if (e) {
+			Object.keys(e).forEach(function (k) {
+				if (k !== 'default') {
+					var d = Object.getOwnPropertyDescriptor(e, k);
+					Object.defineProperty(n, k, d.get ? d : {
+						enumerable: true,
+						get: function () {
+							return e[k];
+						}
+					});
+				}
+			});
 		}
+		n['default'] = e;
+		return Object.freeze(n);
 	}
 
 	var external__default = /*#__PURE__*/_interopDefaultLegacy(external);
@@ -37,7 +36,7 @@ define(['module', 'require', 'external'], function (module, require, external) {
 	console.log(_interopDefault$1, _interopNamespace$1, module$1, require$1, exports$1, document$1, URL$1);
 
 	new Promise(function (resolve, reject) { require(['external'], function (m) { resolve(/*#__PURE__*/_interopNamespace(m)); }, reject) }).then(console.log);
-	exports.default = 0;
+	exports['default'] = 0;
 	console.log(new URL(module.uri, document.baseURI).href);
 
 	function nested1() {
@@ -51,7 +50,7 @@ define(['module', 'require', 'external'], function (module, require, external) {
 		console.log(_interopDefault, _interopNamespace$1, module$1, require$1, exports$1, document$1, URL$1);
 
 		new Promise(function (resolve, reject) { require(['external'], function (m) { resolve(/*#__PURE__*/_interopNamespace(m)); }, reject) }).then(console.log);
-		exports.default = 1;
+		exports['default'] = 1;
 		console.log(new URL(module.uri, document.baseURI).href);
 	}
 
@@ -70,6 +69,6 @@ define(['module', 'require', 'external'], function (module, require, external) {
 
 	nested2();
 
-	return exports.default;
+	return exports['default'];
 
 });

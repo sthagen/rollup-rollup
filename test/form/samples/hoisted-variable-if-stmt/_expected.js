@@ -1,13 +1,13 @@
-if (false) {
-    var foo;
-}
+var foo; 
 
 if (foo) {
     console.log("nope");
 }
 
 {
-    var bar = true;
+    var bar; {
+        bar = true;
+    }
 }
 
 if (bar) {

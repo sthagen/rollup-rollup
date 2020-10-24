@@ -127,7 +127,8 @@ The file to write to. Will also be used to generate sourcemaps, if applicable. C
 
 #### output.format
 Type: `string`<br>
-CLI: `-f`/`--format <formatspecifier>`
+CLI: `-f`/`--format <formatspecifier>`<br>
+Default: `"es"`
 
 Specifies the format of the generated bundle. One of the following:
 
@@ -660,7 +661,7 @@ manualChunks(id) {
 
 Be aware that manual chunks can change the behaviour of the application if side-effects are triggered before the corresponding modules are actually used.
 
-When using the function form, `manualChunks` will be passed an object as second parameter containing the functions `getModuleInfo` and `getModuleIds` that work the same way as [`this.getModuleInfo`](guide/en/#thisgetmoduleinfomoduleid-string--moduleinfo) and [`this.getModuleIds`](guide/en/#thisgetmoduleids--iterableiteratorstring) on the plugin context.
+When using the function form, `manualChunks` will be passed an object as second parameter containing the functions `getModuleInfo` and `getModuleIds` that work the same way as [`this.getModuleInfo`](guide/en/#thisgetmoduleinfomoduleid-string--moduleinfo--null) and [`this.getModuleIds`](guide/en/#thisgetmoduleids--iterableiteratorstring) on the plugin context.
 
 This can be used to dynamically determine into which manual chunk a module should be placed depending on its position in the module graph. For instance consider a scenario where you have a set of components, each of which dynamically imports a set of translated strings, i.e.
 
@@ -856,6 +857,30 @@ const main = require('./main.js');
 console.log(main.default); // 42
 ```
 
+#### output.preserveModulesRoot
+Type: `string`<br>
+CLI: `--preserveModulesRoot <directory-name>`
+
+A directory path to input modules that should be stripped away from [`output.dir`](guide/en/#outputdir) path while [`output.preserveModules`](guide/en#outputpreservemodules) is `true`.
+
+For example, given the following configuration:
+
+```javascript
+export default ({
+  input: [ 'src/module.js', `src/another/module.js` ],
+  output: [{
+    format: 'es',
+    dir: 'dist',
+    preserveModules: true,
+    preserveModulesRoot: 'src'
+  }]
+});
+```
+
+The `preserveModulesRoot` setting ensures that the input modules will be output to the paths `dist/module.js` and `dist/another/module.js`.
+
+This option is particularly useful while using plugins such as `@rollup/plugin-node-resolve`, which may cause changes in the output directory structure. This can happen when third-party modules are not marked [`external`](guide/en/#external), or while developing in a monorepo of multiple packages that rely on one another and are not marked [`external`](guide/en/#external).
+
 #### output.sourcemap
 Type: `boolean | 'inline' | 'hidden'`<br>
 CLI: `-m`/`--sourcemap`/`--no-sourcemap`<br>
@@ -900,7 +925,7 @@ export default ({
 ```
 
 #### preserveEntrySignatures
-Type: `"strict" | "allow-extension" | false`<br>
+Type: `"strict" | "allow-extension" | "exports-only" | false`<br>
 CLI: `--preserveEntrySignatures <strict|allow-extension>`/`--no-preserveEntrySignatures`<br>
 Default: `"strict"`
 
@@ -908,6 +933,7 @@ Controls if Rollup tries to ensure that entry chunks have the same exports as th
 
 - If set to `"strict"`, Rollup will create exactly the same exports in the entry chunk as there are in the corresponding entry module. If this is not possible because additional internal exports need to be added to a chunk, Rollup will instead create a "facade" entry chunk that reexports just the necessary bindings from other chunks but contains no code otherwise. This is the recommended setting for libraries.
 - `"allow-extension"` will create all exports of the entry module in the entry chunk but may also add additional exports if necessary, avoiding a "facade" entry chunk. This setting makes sense for libraries where a strict signature is not required.
+- `"exports-only"` behaves like `"strict"` if the entry module has exports, otherwise it behaves like `"allow-extension"`.
 - `false` will not add any exports of an entry module to the corresponding chunk and does not even include the corresponding code unless those exports are used elsewhere in the bundle. Internal exports may be added to entry chunks, though. This is the recommended setting for web apps where the entry chunks are to be placed in script tags as it may reduce both the number of chunks and possibly the bundle size.
 
 **Example**<br>
@@ -1509,7 +1535,7 @@ Default: `true`
 Whether to clear the screen when a rebuild is triggered.
 
 #### watch.exclude
-Type: `string`<br>
+Type: `string | RegExp | (string | RegExp)[]`<br>
 CLI: `--watch.exclude <files>`
 
 Prevent files from being watched:
@@ -1525,7 +1551,7 @@ export default {
 ```
 
 #### watch.include
-Type: `string`<br>
+Type: `string | RegExp | (string | RegExp)[]`<br>
 CLI: `--watch.include <files>`
 
 Limit the file-watching to certain files. Note that this only filters the module graph but does not allow to add additional watch files:

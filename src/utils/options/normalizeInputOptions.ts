@@ -26,6 +26,7 @@ import { defaultOnWarn, GenericConfigObject, warnUnknownOptions } from './option
 export interface CommandConfigObject {
 	external: (string | RegExp)[];
 	globals: { [id: string]: string } | undefined;
+
 	[key: string]: unknown;
 }
 
@@ -91,7 +92,7 @@ const getOnwarn = (config: GenericConfigObject): WarningHandler => {
 
 const getAcorn = (config: GenericConfigObject): acorn.Options => ({
 	allowAwaitOutsideFunction: true,
-	ecmaVersion: 2020,
+	ecmaVersion: 'latest',
 	preserveParens: false,
 	sourceType: 'module',
 	...(config.acorn as Object)
@@ -133,10 +134,7 @@ const getIdMatcher = <T extends Array<any>>(
 				ids.add(value);
 			}
 		}
-		return (id => ids.has(id) || matchers.some(matcher => matcher.test(id))) as (
-			id: string,
-			...args: T
-		) => boolean;
+		return (id: string, ..._args: T) => ids.has(id) || matchers.some(matcher => matcher.test(id));
 	}
 	return () => false;
 };

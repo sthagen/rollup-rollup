@@ -10,7 +10,7 @@ describe('incremental', () => {
 
 	const plugin = {
 		resolveId: id => {
-			resolveIdCalls += 1;
+			resolveIdCalls++;
 			return id === 'external' ? false : id;
 		},
 
@@ -19,7 +19,7 @@ describe('incremental', () => {
 		},
 
 		transform: code => {
-			transformCalls += 1;
+			transformCalls++;
 			return code;
 		}
 	};
@@ -35,30 +35,24 @@ describe('incremental', () => {
 		};
 	});
 
-	it('does not resolve ids and transforms in the second time', () => {
-		return rollup
-			.rollup({
-				input: 'entry',
-				plugins: [plugin]
-			})
-			.then(bundle => {
-				assert.equal(resolveIdCalls, 2);
-				assert.equal(transformCalls, 2);
-				return rollup.rollup({
-					input: 'entry',
-					plugins: [plugin],
-					cache: bundle
-				});
-			})
-			.then(bundle => {
-				assert.equal(resolveIdCalls, 3); // +1 for entry point which is resolved every time
-				assert.equal(transformCalls, 2);
+	it('does not resolve ids and transforms in the second time', async () => {
+		const firstBundle = await rollup.rollup({
+			input: 'entry',
+			plugins: [plugin]
+		});
+		assert.strictEqual(resolveIdCalls, 2);
+		assert.strictEqual(transformCalls, 2);
 
-				return executeBundle(bundle);
-			})
-			.then(result => {
-				assert.equal(result, 42);
-			});
+		const secondBundle = await rollup.rollup({
+			input: 'entry',
+			plugins: [plugin],
+			cache: firstBundle
+		});
+		assert.strictEqual(resolveIdCalls, 3); // +1 for entry point which is resolved every time
+		assert.strictEqual(transformCalls, 2);
+
+		const result = await executeBundle(secondBundle);
+		assert.strictEqual(result, 42);
 	});
 
 	it('does not resolve dynamic ids and transforms in the second time', () => {
@@ -72,8 +66,8 @@ describe('incremental', () => {
 				plugins: [plugin]
 			})
 			.then(bundle => {
-				assert.equal(resolveIdCalls, 2);
-				assert.equal(transformCalls, 2);
+				assert.strictEqual(resolveIdCalls, 2);
+				assert.strictEqual(transformCalls, 2);
 				return rollup.rollup({
 					input: 'entry',
 					plugins: [plugin],
@@ -81,8 +75,8 @@ describe('incremental', () => {
 				});
 			})
 			.then(bundle => {
-				assert.equal(resolveIdCalls, 3); // +1 for entry point which is resolved every time
-				assert.equal(transformCalls, 2);
+				assert.strictEqual(resolveIdCalls, 3); // +1 for entry point which is resolved every time
+				assert.strictEqual(transformCalls, 2);
 			});
 	});
 
@@ -95,10 +89,10 @@ describe('incremental', () => {
 				plugins: [plugin]
 			})
 			.then(bundle => {
-				assert.equal(transformCalls, 2);
+				assert.strictEqual(transformCalls, 2);
 
 				return executeBundle(bundle).then(result => {
-					assert.equal(result, 42);
+					assert.strictEqual(result, 42);
 
 					modules.foo = `export default 43`;
 					cache = bundle.cache;
@@ -112,12 +106,12 @@ describe('incremental', () => {
 				});
 			})
 			.then(bundle => {
-				assert.equal(transformCalls, 3);
+				assert.strictEqual(transformCalls, 3);
 
 				return executeBundle(bundle);
 			})
 			.then(result => {
-				assert.equal(result, 43);
+				assert.strictEqual(result, 43);
 			});
 	});
 
@@ -130,10 +124,10 @@ describe('incremental', () => {
 				plugins: [plugin]
 			})
 			.then(bundle => {
-				assert.equal(resolveIdCalls, 2);
+				assert.strictEqual(resolveIdCalls, 2);
 
 				return executeBundle(bundle).then(result => {
-					assert.equal(result, 42);
+					assert.strictEqual(result, 42);
 
 					modules.entry = `import bar from 'bar'; export default bar;`;
 					cache = bundle.cache;
@@ -147,12 +141,12 @@ describe('incremental', () => {
 				});
 			})
 			.then(bundle => {
-				assert.equal(resolveIdCalls, 4);
+				assert.strictEqual(resolveIdCalls, 4);
 
 				return executeBundle(bundle);
 			})
 			.then(result => {
-				assert.equal(result, 21);
+				assert.strictEqual(result, 21);
 			});
 	});
 
@@ -168,10 +162,10 @@ describe('incremental', () => {
 				plugins: [plugin]
 			})
 			.then(bundle => {
-				assert.equal(resolveIdCalls, 3);
+				assert.strictEqual(resolveIdCalls, 3);
 
 				return executeBundle(bundle, require).then(result => {
-					assert.equal(result, 43);
+					assert.strictEqual(result, 43);
 					cache = bundle.cache;
 				});
 			})
@@ -183,12 +177,12 @@ describe('incremental', () => {
 				});
 			})
 			.then(bundle => {
-				assert.equal(resolveIdCalls, 4);
+				assert.strictEqual(resolveIdCalls, 4);
 
 				return executeBundle(bundle, require);
 			})
 			.then(result => {
-				assert.equal(result, 43);
+				assert.strictEqual(result, 43);
 			});
 	});
 
@@ -249,7 +243,7 @@ describe('incremental', () => {
 						return executeBundle(bundle);
 					})
 					.then(result => {
-						assert.equal(result, 63);
+						assert.strictEqual(result, 63);
 					});
 			});
 	});
@@ -267,23 +261,79 @@ describe('incremental', () => {
 				plugins: [plugin]
 			})
 			.then(bundle => {
-				assert.equal(bundle.cache.modules[0].id, 'foo');
-				assert.equal(bundle.cache.modules[1].id, 'entry');
+				assert.strictEqual(bundle.cache.modules[0].id, 'foo');
+				assert.strictEqual(bundle.cache.modules[1].id, 'entry');
 
 				assert.deepEqual(bundle.cache.modules[1].resolvedIds, {
 					foo: {
 						id: 'foo',
 						external: false,
+						meta: {},
 						moduleSideEffects: true,
 						syntheticNamedExports: false
 					},
 					external: {
 						id: 'external',
 						external: true,
+						meta: {},
 						moduleSideEffects: true,
 						syntheticNamedExports: false
 					}
 				});
 			});
+	});
+
+	it('restores module options from cache', async () => {
+		let moduleParsedCalls = 0;
+		const plugin = {
+			name: 'test',
+			resolveId(id) {
+				resolveIdCalls++;
+				return { id, meta: { test: { resolved: id } } };
+			},
+
+			load(id) {
+				assert.deepStrictEqual(this.getModuleInfo(id).meta, { test: { resolved: id } });
+				return { code: modules[id], meta: { test: { loaded: id } } };
+			},
+
+			transform(code, id) {
+				transformCalls++;
+				assert.deepStrictEqual(this.getModuleInfo(id).meta, { test: { loaded: id } });
+				return { code, meta: { test: { transformed: id } } };
+			},
+
+			moduleParsed({ id, meta }) {
+				assert.deepStrictEqual(meta, { test: { transformed: id } });
+				moduleParsedCalls++;
+			},
+
+			buildEnd() {
+				assert.deepStrictEqual(
+					[...this.getModuleIds()].map(id => ({ id, meta: this.getModuleInfo(id).meta })),
+					[
+						{ id: 'entry', meta: { test: { transformed: 'entry' } } },
+						{ id: 'foo', meta: { test: { transformed: 'foo' } } }
+					]
+				);
+			}
+		};
+
+		const bundle = await rollup.rollup({
+			input: 'entry',
+			plugins: [plugin]
+		});
+		assert.strictEqual(resolveIdCalls, 2);
+		assert.strictEqual(transformCalls, 2);
+		assert.strictEqual(moduleParsedCalls, 2);
+
+		await rollup.rollup({
+			input: 'entry',
+			plugins: [plugin],
+			cache: bundle
+		});
+		assert.strictEqual(resolveIdCalls, 3); // +1 for entry point which is resolved every time
+		assert.strictEqual(transformCalls, 2);
+		assert.strictEqual(moduleParsedCalls, 4); // should not be cached
 	});
 });
