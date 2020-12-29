@@ -41,7 +41,9 @@ function generateAssetFileName(
 	const emittedName = name || 'asset';
 	return makeUnique(
 		renderNamePattern(
-			output.assetFileNames,
+			typeof output.assetFileNames === 'function'
+				? output.assetFileNames({ name, source, type: 'asset' })
+				: output.assetFileNames,
 			'output.assetFileNames',
 			{
 				hash() {
@@ -54,8 +56,7 @@ function generateAssetFileName(
 				ext: () => extname(emittedName).substr(1),
 				extname: () => extname(emittedName),
 				name: () => emittedName.substr(0, emittedName.length - extname(emittedName).length)
-			},
-			() => ({ name, source, type: 'asset' })
+			}
 		),
 		output.bundle
 	);
@@ -102,10 +103,10 @@ export const FILE_PLACEHOLDER: FilePlaceholder = {
 function hasValidType(
 	emittedFile: unknown
 ): emittedFile is { type: 'asset' | 'chunk'; [key: string]: unknown } {
-	return (
+	return Boolean(
 		emittedFile &&
-		((emittedFile as { [key: string]: unknown }).type === 'asset' ||
-			(emittedFile as { [key: string]: unknown }).type === 'chunk')
+			((emittedFile as { [key: string]: unknown }).type === 'asset' ||
+				(emittedFile as { [key: string]: unknown }).type === 'chunk')
 	);
 }
 

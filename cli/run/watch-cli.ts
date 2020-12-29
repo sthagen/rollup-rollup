@@ -136,6 +136,10 @@ export async function watch(command: any) {
 						stderr(`\n[${dateTime()}] waiting for changes...`);
 					}
 			}
+
+			if ('result' in event && event.result) {
+				event.result.close().catch(error => handleError(error, true));
+			}
 		});
 	}
 

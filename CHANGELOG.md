@@ -1,5 +1,100 @@
 # rollup changelog
 
+## 2.35.1
+*2020-12-14*
+
+### Bug Fixes
+* Allow closing the bundle when watching in case of generate errors by adding the bundle to the error event (#3909)
+* Automatically close all bundles on generate errors when watching and using the CLI (#3909)
+* Try to create remaining bundles when watching and one of them throws (#3909)
+
+### Pull Requests
+* [#3909](https://github.com/rollup/rollup/pull/3909): Forward bundle through watch error events (@lukastaegert)
+
+## 2.35.0
+*2020-12-14*
+
+### Features
+* Add `closeBundle` hook that is triggered by `bundle.close()` in the JS API (#3883)
+
+### Pull Requests
+* [#3883](https://github.com/rollup/rollup/pull/3883): Revert pattern to folder export (@intrnl)
+
+## 2.34.2
+*2020-12-06*
+
+### Bug Fixes
+* Revert pattern export change (#3898)
+
+### Pull Requests
+* [#3898](https://github.com/rollup/rollup/pull/3898): Revert pattern to folder export (@lukastaegert)
+
+## 2.34.1
+*2020-12-03*
+
+### Bug Fixes
+* Avoid Node deprecation warning by using a pattern export for nested Rollup files (#3896)
+
+### Pull Requests
+* [#3887](https://github.com/rollup/rollup/pull/3887): Run memory leak test on all systems (@lukastaegert)
+* [#3892](https://github.com/rollup/rollup/pull/3892): Add pull_request to windows github actions (@shellscape)
+* [#3893](https://github.com/rollup/rollup/pull/3893): Update dependencies (@lukastaegert)
+* [#3896](https://github.com/rollup/rollup/pull/3896): Replace deprecated folder package export with pattern export (@lukastaegert)
+
+## 2.34.0
+*2020-11-29*
+
+### Features
+* Support RequireJS comaptible AMD ids in code-splitting builds via amd.autoId (#3867)
+* Allow adding an AMD id base path (#3867)
+
+### Bug Fixes
+* Warn when using an constant AMD id in a code-splitting build (#3867)
+
+### Pull Requests
+* [#3867](https://github.com/rollup/rollup/pull/3867): Implement amd.autoId/amd.basePath options (@tjenkinson)
+
+## 2.33.3
+*2020-11-18*
+
+### Bug Fixes
+* Do not use `.js` extension when importing AMD files from a UMD bundle (#3872)
+
+### Pull Requests
+* [#3861](https://github.com/rollup/rollup/pull/3861): Update chat/support links (@shellscape)
+* [#3872](https://github.com/rollup/rollup/pull/3872): Also removeExtensionFromRelativeAmdId in UMD finaliser (@tjenkinson)
+
+## 2.33.2
+*2020-11-14*
+
+### Bug Fixes
+* Fix an issue where statements were ignored after a conditional return in a labeled statement (#3871)
+
+### Pull Requests
+* [#3871](https://github.com/rollup/rollup/pull/3871): Correctly track label usage in try statements (@Amareis)
+
+## 2.33.1
+*2020-11-02*
+
+### Bug Fixes
+* Add `syntheticNamedExports` to `this.getModuleInfo` to align with documentation (#3847)
+
+### Pull Requests
+* [#3847](https://github.com/rollup/rollup/pull/3847): Expose syntheticNamedExports to ModuleInfo (@Amareis)
+* [#3852](https://github.com/rollup/rollup/pull/3852): Fix typo on docs (@jpsc)
+
+## 2.33.0
+*2020-11-01*
+
+### Features
+* Add parameter to "watchChange" hook to denote if a change was an addition, update or deletion (#3841)
+* Add "closeWatcher" hook to allow plugins to clean up resources when the watcher is closed (#3841)
+* Add "this.getWatchFiles" function to plugin context to get the current set of watched files (#3841)
+
+### Pull Requests
+* [#3841](https://github.com/rollup/rollup/pull/3841): Improved watcher hooks (@Amareis)
+* [#3848](https://github.com/rollup/rollup/pull/3848): Add options hook to asyncpluginhooks (@intrnl)
+
 ## 2.32.1
 *2020-10-21*
 
