@@ -1,11 +1,13 @@
 import MagicString from 'magic-string';
+import { BLANK } from '../../utils/blank';
 import {
 	findFirstOccurrenceOutsideComment,
 	findNonWhiteSpace,
+	NodeRenderOptions,
 	RenderOptions
 } from '../../utils/renderHelpers';
 import { getSystemExportFunctionLeft } from '../../utils/systemJsRendering';
-import { HasEffectsContext, InclusionContext } from '../ExecutionContext';
+import { createHasEffectsContext, HasEffectsContext, InclusionContext } from '../ExecutionContext';
 import { EMPTY_PATH, ObjectPath, UNKNOWN_PATH } from '../utils/PathTracker';
 import Variable from '../variables/Variable';
 import * as NodeType from './NodeType';
@@ -13,7 +15,7 @@ import { ExpressionNode, IncludeChildren, NodeBase } from './shared/Node';
 import { PatternNode } from './shared/Pattern';
 
 export default class AssignmentExpression extends NodeBase {
-	left!: PatternNode;
+	left!: ExpressionNode | PatternNode;
 	operator!:
 		| '='
 		| '+='
@@ -48,13 +50,35 @@ export default class AssignmentExpression extends NodeBase {
 	include(context: InclusionContext, includeChildrenRecursively: IncludeChildren): void {
 		if (!this.deoptimized) this.applyDeoptimizations();
 		this.included = true;
-		this.left.include(context, includeChildrenRecursively);
+		let hasEffectsContext;
+		if (
+			includeChildrenRecursively ||
+			this.operator !== '=' ||
+			this.left.included ||
+			((hasEffectsContext = createHasEffectsContext()),
+			this.left.hasEffects(hasEffectsContext) ||
+				this.left.hasEffectsWhenAssignedAtPath(EMPTY_PATH, hasEffectsContext))
+		) {
+			this.left.include(context, includeChildrenRecursively);
+		}
 		this.right.include(context, includeChildrenRecursively);
 	}
 
-	render(code: MagicString, options: RenderOptions) {
-		this.left.render(code, options);
-		this.right.render(code, options);
+	render(
+		code: MagicString,
+		options: RenderOptions,
+		{ renderedParentType }: NodeRenderOptions = BLANK
+	) {
+		if (this.left.included) {
+			this.left.render(code, options);
+			this.right.render(code, options);
+		} else {
+			this.right.render(code, options, {
+				renderedParentType: renderedParentType || this.parent.type
+			});
+			const operatorPos = findFirstOccurrenceOutsideComment(code.original, '=', this.left.end);
+			code.remove(this.start, findNonWhiteSpace(code.original, operatorPos + 1));
+		}
 		if (options.format === 'system') {
 			const exportNames =
 				this.left.variable && options.exportNamesByVariable.get(this.left.variable);

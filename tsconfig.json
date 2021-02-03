@@ -2,7 +2,9 @@
 	"compilerOptions": {
 		"allowSyntheticDefaultImports": true,
 		"diagnostics": true,
-		"module": "commonjs",
+		"isolatedModules": true,
+		"module": "ESNext",
+		"moduleResolution": "Node",
 		"noEmitOnError": true,
 		"noUnusedLocals": true,
 		"noUnusedParameters": true,

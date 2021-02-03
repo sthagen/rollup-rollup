@@ -1,5 +1,105 @@
 # rollup changelog
 
+## 2.38.4
+*2021-02-02*
+
+### Bug Fixes
+* Do not change logic when tree-shaking declarations in if statements or loops (#3947)
+
+### Pull Requests
+* [#3947](https://github.com/rollup/rollup/pull/3947): Do not tear apart declarations in loop or if bodies (@lukastaegert)
+
+## 2.38.3
+*2021-02-01*
+
+### Bug Fixes
+* Prevent an unexpected live-binding when default exporting a synthetic named export (#3946)
+
+### Pull Requests
+* [#3945](https://github.com/rollup/rollup/pull/3945): Upgrade chokidar and fsevents for Apple M1 compatibility (@threepointone)
+* [#3946](https://github.com/rollup/rollup/pull/3946): Make sure default exports snapshot synthetic named exports (@lukastaegert)
+
+## 2.38.2
+*2021-01-31*
+
+### Bug Fixes
+* Do not generate invalid code for partially tree-shaken declarations in for loops (#3943)
+* Always include function bodies of functions in side-effect-free modules (#3944)
+
+### Pull Requests
+* [#3943](https://github.com/rollup/rollup/pull/3943): Do not partially tree-shake unused declarations in for loops (@lukastaegert)
+* [#3944](https://github.com/rollup/rollup/pull/3944): Correctly include functions with side effects from side-effect-free modules (@lukastaegert)
+
+## 2.38.1
+*2021-01-28*
+
+### Bug Fixes
+* Fix internal error when resolving a missing entry point in the browser build (#3935)
+
+### Pull Requests
+* [#3935](https://github.com/rollup/rollup/pull/3935): fix: remove isolated resolve() for compat with browser distribution (@cmorten and @lukastaegert)
+* [#3936](https://github.com/rollup/rollup/pull/3936): Ensure test after() callback is always executed (@Benjamin-Dobell)
+* [#3937](https://github.com/rollup/rollup/pull/3937): Modernize references to other software (@ludofischer)
+
+## 2.38.0
+*2021-01-22*
+
+### Features
+* Entirely remove declared variables that only have an initializer side effect (#3933)
+
+### Pull Requests
+* [#3933](https://github.com/rollup/rollup/pull/3933): Tree-shake unused declarations while keeping initializer side-effects (@lukastaegert)
+
+## 2.37.1
+*2021-01-20*
+
+### Pull Requests
+* [#3929](https://github.com/rollup/rollup/pull/3929): Deduplicate acorn import (@lukastaegert)
+
+## 2.37.0
+*2021-01-19*
+
+### Features
+* Always check modules for side effects that only indirectly reexport a used variable (#3840)
+* Warn if a circular dependency would cause wrong execution order when preserving modules (#3840)
+
+### Bug Fixes
+* Allow consuming synthetic exports via modules that reexport a namespace (#3894)
+* Do not crash for circular default reexports (#3840)
+* Do not crash for circular synthetic namespaces (#3840)
+* Improve circular dependency execution order in certain scenarios (#3840)
+
+### Pull Requests
+* [#3840](https://github.com/rollup/rollup/pull/3840): Improve circular dependency execution order (@lukastaegert)
+* [#3894](https://github.com/rollup/rollup/pull/3894): Always respect synthetic namespaces in namespace reexport (@lukastaegert)
+
+## 2.36.2
+*2021-01-16*
+
+### Bug Fixes
+* Fix an issue where invalid code was generated for unused assignments with side effects (#3926)
+
+### Pull Requests
+* [#3926](https://github.com/rollup/rollup/pull/3926): Correctly simplify assignments with parentheses (@lukastaegert)
+
+## 2.36.1
+*2021-01-06*
+
+### Bug Fixes
+* Solve issues that result in invalid code when partially removing assignments (#3921)
+
+### Pull Requests
+* [#3921](https://github.com/rollup/rollup/pull/3921): Prevent invalid code when removing assignment target of side-effectful object expression (@lukastaegert)
+
+## 2.36.0
+*2021-01-05*
+
+### Features
+* Support partial tree-shaking of chained assignments and unused assignment targets (#3919)
+
+### Pull Requests
+* [#3919](https://github.com/rollup/rollup/pull/3919): Treeshake chained assignment expressions (@lukastaegert)
+
 ## 2.35.1
 *2020-12-14*
 
