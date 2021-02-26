@@ -1466,7 +1466,7 @@ console.log(foo);
 
 Note that despite the name, this option does not "add" side effects to modules that do not have side effects. If it is important that e.g. an empty module is "included" in the bundle because you need this for dependency tracking, the plugin interface allows you to designate modules as being excluded from tree-shaking via the [`resolveId`](guide/en/#resolveid), [`load`](guide/en/#load) or [`transform`](guide/en/#transform) hook.
 
-**treeshake.propertyReadSideEffects**
+**treeshake.propertyReadSideEffects**<br>
 Type: `boolean`<br>
 CLI: `--treeshake.propertyReadSideEffects`/`--no-treeshake.propertyReadSideEffects`<br>
 Default: `true`
@@ -1485,7 +1485,7 @@ const result = foo.bar;
 const illegalAccess = foo.quux.tooDeep;
 ```
 
-**treeshake.tryCatchDeoptimization**
+**treeshake.tryCatchDeoptimization**<br>
 Type: `boolean`<br>
 CLI: `--treeshake.tryCatchDeoptimization`/`--no-treeshake.tryCatchDeoptimization`<br>
 Default: `true`
@@ -1525,7 +1525,7 @@ test(otherFn);
 
 ```
 
-**treeshake.unknownGlobalSideEffects**
+**treeshake.unknownGlobalSideEffects**<br>
 Type: `boolean`<br>
 CLI: `--treeshake.unknownGlobalSideEffects`/`--no-treeshake.unknownGlobalSideEffects`<br>
 Default: `true`
