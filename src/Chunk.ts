@@ -56,7 +56,6 @@ import relativeId, { getAliasName } from './utils/relativeId';
 import renderChunk from './utils/renderChunk';
 import { RenderOptions } from './utils/renderHelpers';
 import { makeUnique, renderNamePattern } from './utils/renderNamePattern';
-import { sanitizeFileName } from './utils/sanitizeFileName';
 import { timeEnd, timeStart } from './utils/timers';
 import { MISSING_EXPORT_SHIM_VARIABLE } from './utils/variableNames';
 
@@ -187,6 +186,7 @@ export default class Chunk {
 	private dependencies = new Set<ExternalModule | Chunk>();
 	private dynamicDependencies = new Set<ExternalModule | Chunk>();
 	private dynamicEntryModules: Module[] = [];
+	private dynamicName: string | null = null;
 	private exportNamesByVariable = new Map<Variable, string[]>();
 	private exports = new Set<Variable>();
 	private exportsByName: Record<string, Variable> = Object.create(null);
@@ -384,7 +384,7 @@ export default class Chunk {
 				this.facadeModule = module;
 				this.facadeChunkByModule.set(module, this);
 				this.strictFacade = true;
-				this.assignFacadeName({}, module);
+				this.dynamicName = getChunkNameFromModule(module);
 			} else if (
 				this.facadeModule === module &&
 				!this.strictFacade &&
@@ -436,7 +436,7 @@ export default class Chunk {
 		unsetOptions: Set<string>
 	): string {
 		const id = this.orderedModules[0].id;
-		const sanitizedId = sanitizeFileName(id);
+		const sanitizedId = this.outputOptions.sanitizeFileName(id);
 		let path: string;
 		if (isAbsolute(id)) {
 			const extension = extname(id);
@@ -500,7 +500,7 @@ export default class Chunk {
 	}
 
 	getChunkName(): string {
-		return this.name || (this.name = sanitizeFileName(this.getFallbackChunkName()));
+		return this.name || (this.name = this.outputOptions.sanitizeFileName(this.getFallbackChunkName()));
 	}
 
 	getExportNames(): string[] {
@@ -611,11 +611,15 @@ export default class Chunk {
 				}
 			}
 			const { renderedExports, removedExports } = module.getRenderedExports();
+			const chunk = this;
 			renderedModules[module.id] = {
 				originalLength: module.originalCode.length,
 				removedExports,
 				renderedExports,
-				renderedLength
+				renderedLength,
+				get code() {
+					return chunk.renderedModuleSources.get(module)?.toString() ?? null;
+				}
 			};
 		}
 
@@ -811,9 +815,7 @@ export default class Chunk {
 		if (fileName) {
 			this.fileName = fileName;
 		} else {
-			this.name = sanitizeFileName(
-				name || facadedModule.chunkName || getAliasName(facadedModule.id)
-			);
+			this.name = this.outputOptions.sanitizeFileName(name || getChunkNameFromModule(facadedModule));
 		}
 	}
 
@@ -1076,6 +1078,9 @@ export default class Chunk {
 		if (this.manualChunkAlias) {
 			return this.manualChunkAlias;
 		}
+		if (this.dynamicName) {
+			return this.dynamicName;
+		}
 		if (this.fileName) {
 			return getAliasName(this.fileName);
 		}
@@ -1246,7 +1251,11 @@ export default class Chunk {
 		}
 	}
 
-	private setIdentifierRenderResolutions({ format, interop, namespaceToStringTag }: NormalizedOutputOptions) {
+	private setIdentifierRenderResolutions({
+		format,
+		interop,
+		namespaceToStringTag
+	}: NormalizedOutputOptions) {
 		const syntheticExports = new Set<SyntheticNamedExportVariable>();
 		for (const exportName of this.getExportNames()) {
 			const exportVariable = this.exportsByName[exportName];
@@ -1361,4 +1370,8 @@ export default class Chunk {
 			}
 		}
 	}
+}
+
+function getChunkNameFromModule(module: Module): string {
+	return module.chunkName || getAliasName(module.id);
 }

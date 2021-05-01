@@ -7,14 +7,15 @@ module.exports = {
 	description: 'keeps watching the config file in case the initial file contains an error',
 	command: 'rollup -cw',
 	before() {
-		configFile = path.resolve(__dirname, 'rollup.config.js');
+		configFile = path.join(__dirname, 'rollup.config.js');
 		fs.writeFileSync(configFile, 'throw new Error("Config contains initial errors");');
 	},
 	after() {
 		fs.unlinkSync(configFile);
 	},
-	abortOnStderr(data) {
+	async abortOnStderr(data) {
 		if (data.includes('Config contains initial errors')) {
+			await new Promise(resolve => setTimeout(resolve, 100));
 			fs.writeFileSync(
 				configFile,
 				'export default {\n' +

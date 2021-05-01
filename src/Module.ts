@@ -15,7 +15,7 @@ import Literal from './ast/nodes/Literal';
 import MetaProperty from './ast/nodes/MetaProperty';
 import * as NodeType from './ast/nodes/NodeType';
 import Program from './ast/nodes/Program';
-import { ExpressionNode, NodeBase } from './ast/nodes/shared/Node';
+import { ExpressionNode, GenericEsTreeNode, NodeBase } from './ast/nodes/shared/Node';
 import TemplateLiteral from './ast/nodes/TemplateLiteral';
 import VariableDeclaration from './ast/nodes/VariableDeclaration';
 import ModuleScope from './ast/scopes/ModuleScope';
@@ -58,20 +58,12 @@ import { getOrCreate } from './utils/getOrCreate';
 import { getOriginalLocation } from './utils/getOriginalLocation';
 import { makeLegal } from './utils/identifierHelpers';
 import { basename, extname } from './utils/path';
-import { markPureCallExpressions } from './utils/pureComments';
 import relativeId from './utils/relativeId';
 import { RenderOptions } from './utils/renderHelpers';
-import { SOURCEMAPPING_URL_RE } from './utils/sourceMappingURL';
+import { SOURCEMAPPING_URL_COMMENT_RE } from './utils/sourceMappingURL';
 import { timeEnd, timeStart } from './utils/timers';
 import { markModuleAndImpureDependenciesAsExecuted } from './utils/traverseStaticDependencies';
 import { MISSING_EXPORT_SHIM_VARIABLE } from './utils/variableNames';
-
-export interface CommentDescription {
-	block: boolean;
-	end: number;
-	start: number;
-	text: string;
-}
 
 interface ImportDescription {
 	module: Module | ExternalModule;
@@ -122,39 +114,35 @@ export interface AstContext {
 	warn: (warning: RollupWarning, pos: number) => void;
 }
 
-function tryParse(
-	module: Module,
-	Parser: typeof acorn.Parser,
-	acornOptions: acorn.Options
-): acorn.Node {
-	try {
-		return Parser.parse(module.info.code!, {
-			...acornOptions,
-			onComment: (block: boolean, text: string, start: number, end: number) =>
-				module.comments.push({ block, text, start, end })
-		});
-	} catch (err) {
-		let message = err.message.replace(/ \(\d+:\d+\)$/, '');
-		if (module.id.endsWith('.json')) {
-			message += ' (Note that you need @rollup/plugin-json to import JSON files)';
-		} else if (!module.id.endsWith('.js')) {
-			message += ' (Note that you need plugins to import files that are not JavaScript)';
-		}
-		return module.error(
-			{
-				code: 'PARSE_ERROR',
-				message,
-				parserError: err
-			},
-			err.pos
-		);
-	}
-}
-
 const MISSING_EXPORT_SHIM_DESCRIPTION: ExportDescription = {
 	identifier: null,
 	localName: MISSING_EXPORT_SHIM_VARIABLE
 };
+
+function findSourceMappingURLComments(ast: acorn.Node, code: string): [number, number][] {
+	const ret: [number, number][] = [];
+
+	const addCommentsPos = (start: number, end: number): void => {
+		if (start == end) {
+			return;
+		}
+
+		let sourcemappingUrlMatch;
+		const interStatmentCode = code.slice(start, end);
+		while (sourcemappingUrlMatch = SOURCEMAPPING_URL_COMMENT_RE.exec(interStatmentCode)) {
+			ret.push([start + sourcemappingUrlMatch.index, start + SOURCEMAPPING_URL_COMMENT_RE.lastIndex]);
+		}
+	};
+
+	let prevStmtEnd = 0;
+	for (const stmt of (ast as GenericEsTreeNode).body) {
+		addCommentsPos(prevStmtEnd, stmt.start);
+		prevStmtEnd = stmt.end;
+	}
+	addCommentsPos(prevStmtEnd, code.length);
+
+	return ret;
+}
 
 function getVariableForExportNameRecursive(
 	target: Module | ExternalModule,
@@ -218,7 +206,6 @@ export default class Module {
 	ast: Program | null = null;
 	chunkFileNames = new Set<string>();
 	chunkName: string | null = null;
-	comments: CommentDescription[] = [];
 	cycles = new Set<Symbol>();
 	dependencies = new Set<Module | ExternalModule>();
 	dynamicDependencies = new Set<Module | ExternalModule>();
@@ -719,14 +706,9 @@ export default class Module {
 
 		this.alwaysRemovedCode = alwaysRemovedCode || [];
 		if (!ast) {
-			ast = tryParse(this, this.graph.acornParser, this.options.acorn as acorn.Options);
-			for (const comment of this.comments) {
-				if (!comment.block && SOURCEMAPPING_URL_RE.test(comment.text)) {
-					this.alwaysRemovedCode.push([comment.start, comment.end]);
-				}
-			}
-			markPureCallExpressions(this.comments, ast);
+			ast = this.tryParse();
 		}
+		this.alwaysRemovedCode.push(...findSourceMappingURLComments(ast, this.info.code));
 
 		timeEnd('generate ast', 3);
 
@@ -833,6 +815,28 @@ export default class Module {
 
 		return null;
 	}
+
+	tryParse(): acorn.Node {
+		try {
+			return this.graph.contextParse(this.info.code!);
+		} catch (err) {
+			let message = err.message.replace(/ \(\d+:\d+\)$/, '');
+			if (this.id.endsWith('.json')) {
+				message += ' (Note that you need @rollup/plugin-json to import JSON files)';
+			} else if (!this.id.endsWith('.js')) {
+				message += ' (Note that you need plugins to import files that are not JavaScript)';
+			}
+			return this.error(
+				{
+					code: 'PARSE_ERROR',
+					message,
+					parserError: err
+				},
+				err.pos
+			);
+		}
+	}
+
 
 	updateOptions({
 		meta,

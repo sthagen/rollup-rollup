@@ -7,6 +7,7 @@ import {
 	EmitFile,
 	FirstPluginHooks,
 	NormalizedInputOptions,
+	NormalizedOutputOptions,
 	OutputBundleWithPlaceholders,
 	OutputPluginHooks,
 	ParallelPluginHooks,
@@ -14,14 +15,13 @@ import {
 	PluginContext,
 	PluginHooks,
 	PluginValueHooks,
-	PreRenderedAsset,
 	SequentialPluginHooks,
 	SerializablePluginCache,
 	SyncPluginHooks
 } from '../rollup/types';
 import { errInputHookInOutputPlugin, error } from './error';
 import { FileEmitter } from './FileEmitter';
-import { getPluginContexts } from './PluginContext';
+import { getPluginContext } from './PluginContext';
 import { throwPluginError, warnDeprecatedHooks } from './pluginUtils';
 
 /**
@@ -59,7 +59,7 @@ const inputHookNames: {
 };
 const inputHooks = Object.keys(inputHookNames);
 
-type ReplaceContext = (context: PluginContext, plugin: Plugin) => PluginContext;
+export type ReplaceContext = (context: PluginContext, plugin: Plugin) => PluginContext;
 
 function throwInvalidHookError(hookName: string, pluginName: string) {
 	return error({
@@ -74,13 +74,13 @@ export class PluginDriver {
 	public getFileName: (fileReferenceId: string) => string;
 	public setOutputBundle: (
 		outputBundle: OutputBundleWithPlaceholders,
-		assetFileNames: string | ((assetInfo: PreRenderedAsset) => string),
+		outputOptions: NormalizedOutputOptions,
 		facadeChunkByModule: Map<Module, Chunk>
 	) => void;
 
 	private fileEmitter: FileEmitter;
 	private pluginCache: Record<string, SerializablePluginCache> | undefined;
-	private pluginContexts: PluginContext[];
+	private pluginContexts = new Map<Plugin, PluginContext>();
 	private plugins: Plugin[];
 
 	constructor(
@@ -92,19 +92,19 @@ export class PluginDriver {
 	) {
 		warnDeprecatedHooks(userPlugins, options);
 		this.pluginCache = pluginCache;
-		this.fileEmitter = new FileEmitter(
-			graph,
-			options,
-			basePluginDriver && basePluginDriver.fileEmitter
-		);
-		this.emitFile = this.fileEmitter.emitFile;
-		this.getFileName = this.fileEmitter.getFileName;
-		this.finaliseAssets = this.fileEmitter.assertAssetsFinalized;
-		this.setOutputBundle = this.fileEmitter.setOutputBundle;
+		this.fileEmitter = new FileEmitter(graph, options, basePluginDriver && basePluginDriver.fileEmitter);
+		this.emitFile = this.fileEmitter.emitFile.bind(this.fileEmitter);
+		this.getFileName = this.fileEmitter.getFileName.bind(this.fileEmitter);
+		this.finaliseAssets = this.fileEmitter.assertAssetsFinalized.bind(this.fileEmitter);
+		this.setOutputBundle = this.fileEmitter.setOutputBundle.bind(this.fileEmitter);
 		this.plugins = userPlugins.concat(basePluginDriver ? basePluginDriver.plugins : []);
-		this.pluginContexts = this.plugins.map(
-			getPluginContexts(pluginCache, graph, options, this.fileEmitter)
-		);
+		const existingPluginNames = new Set<string>();
+		for (const plugin of this.plugins) {
+			this.pluginContexts.set(
+				plugin,
+				getPluginContext(plugin, pluginCache, graph, options, this.fileEmitter, existingPluginNames)
+			);
+		}
 		if (basePluginDriver) {
 			for (const plugin of userPlugins) {
 				for (const hook of inputHooks) {
@@ -125,14 +125,14 @@ export class PluginDriver {
 		hookName: H,
 		args: Parameters<PluginHooks[H]>,
 		replaceContext?: ReplaceContext | null,
-		skip?: number | null
+		skipped?: Set<Plugin> | null
 	): EnsurePromise<ReturnType<PluginHooks[H]>> {
 		let promise: EnsurePromise<ReturnType<PluginHooks[H]>> = Promise.resolve(undefined as any);
-		for (let i = 0; i < this.plugins.length; i++) {
-			if (skip === i) continue;
+		for (const plugin of this.plugins) {
+			if (skipped && skipped.has(plugin)) continue;
 			promise = promise.then(result => {
 				if (result != null) return result;
-				return this.runHook(hookName, args, i, false, replaceContext);
+				return this.runHook(hookName, args, plugin, false, replaceContext);
 			});
 		}
 		return promise;
@@ -144,8 +144,8 @@ export class PluginDriver {
 		args: Parameters<PluginHooks[H]>,
 		replaceContext?: ReplaceContext
 	): ReturnType<PluginHooks[H]> {
-		for (let i = 0; i < this.plugins.length; i++) {
-			const result = this.runHookSync(hookName, args, i, replaceContext);
+		for (const plugin of this.plugins) {
+			const result = this.runHookSync(hookName, args, plugin, replaceContext);
 			if (result != null) return result;
 		}
 		return null as any;
@@ -158,8 +158,8 @@ export class PluginDriver {
 		replaceContext?: ReplaceContext
 	): Promise<void> {
 		const promises: Promise<void>[] = [];
-		for (let i = 0; i < this.plugins.length; i++) {
-			const hookPromise = this.runHook(hookName, args, i, false, replaceContext);
+		for (const plugin of this.plugins) {
+			const hookPromise = this.runHook(hookName, args, plugin, false, replaceContext);
 			if (!hookPromise) continue;
 			promises.push(hookPromise);
 		}
@@ -178,13 +178,13 @@ export class PluginDriver {
 		replaceContext?: ReplaceContext
 	): Promise<Arg0<H>> {
 		let promise = Promise.resolve(arg0);
-		for (let i = 0; i < this.plugins.length; i++) {
+		for (const plugin of this.plugins) {
 			promise = promise.then(arg0 => {
 				const args = [arg0, ...rest] as Parameters<PluginHooks[H]>;
-				const hookPromise = this.runHook(hookName, args, i, false, replaceContext);
+				const hookPromise = this.runHook(hookName, args, plugin, false, replaceContext);
 				if (!hookPromise) return arg0;
 				return hookPromise.then(result =>
-					reduce.call(this.pluginContexts[i], arg0, result, this.plugins[i])
+					reduce.call(this.pluginContexts.get(plugin), arg0, result, plugin)
 				);
 			});
 		}
@@ -198,10 +198,10 @@ export class PluginDriver {
 		reduce: (reduction: Arg0<H>, result: ReturnType<PluginHooks[H]>, plugin: Plugin) => Arg0<H>,
 		replaceContext?: ReplaceContext
 	): Arg0<H> {
-		for (let i = 0; i < this.plugins.length; i++) {
+		for (const plugin of this.plugins) {
 			const args = [arg0, ...rest] as Parameters<PluginHooks[H]>;
-			const result = this.runHookSync(hookName, args, i, replaceContext);
-			arg0 = reduce.call(this.pluginContexts[i], arg0, result, this.plugins[i]);
+			const result = this.runHookSync(hookName, args, plugin, replaceContext);
+			arg0 = reduce.call(this.pluginContexts.get(plugin), arg0, result, plugin);
 		}
 		return arg0;
 	}
@@ -219,12 +219,12 @@ export class PluginDriver {
 		replaceContext?: ReplaceContext
 	): Promise<T> {
 		let promise = Promise.resolve(initialValue);
-		for (let i = 0; i < this.plugins.length; i++) {
+		for (const plugin of this.plugins) {
 			promise = promise.then(value => {
-				const hookPromise = this.runHook(hookName, args, i, true, replaceContext);
+				const hookPromise = this.runHook(hookName, args, plugin, true, replaceContext);
 				if (!hookPromise) return value;
 				return hookPromise.then(result =>
-					reduce.call(this.pluginContexts[i], value, result, this.plugins[i])
+					reduce.call(this.pluginContexts.get(plugin), value, result, plugin)
 				);
 			});
 		}
@@ -240,9 +240,9 @@ export class PluginDriver {
 		replaceContext?: ReplaceContext
 	): T {
 		let acc = initialValue;
-		for (let i = 0; i < this.plugins.length; i++) {
-			const result = this.runHookSync(hookName, args, i, replaceContext);
-			acc = reduce.call(this.pluginContexts[i], acc, result, this.plugins[i]);
+		for (const plugin of this.plugins) {
+			const result = this.runHookSync(hookName, args, plugin, replaceContext);
+			acc = reduce.call(this.pluginContexts.get(plugin), acc, result, plugin);
 		}
 		return acc;
 	}
@@ -254,9 +254,9 @@ export class PluginDriver {
 		replaceContext?: ReplaceContext
 	): Promise<void> {
 		let promise = Promise.resolve();
-		for (let i = 0; i < this.plugins.length; i++) {
+		for (const plugin of this.plugins) {
 			promise = promise.then(
-				() => this.runHook(hookName, args, i, false, replaceContext) as Promise<void>
+				() => this.runHook(hookName, args, plugin, false, replaceContext) as Promise<void>
 			);
 		}
 		return promise;
@@ -268,8 +268,8 @@ export class PluginDriver {
 		args: Parameters<PluginHooks[H]>,
 		replaceContext?: ReplaceContext
 	): void {
-		for (let i = 0; i < this.plugins.length; i++) {
-			this.runHookSync(hookName, args, i, replaceContext);
+		for (const plugin of this.plugins) {
+			this.runHookSync(hookName, args, plugin, replaceContext);
 		}
 	}
 
@@ -277,36 +277,35 @@ export class PluginDriver {
 	 * Run an async plugin hook and return the result.
 	 * @param hookName Name of the plugin hook. Must be either in `PluginHooks` or `OutputPluginValueHooks`.
 	 * @param args Arguments passed to the plugin hook.
-	 * @param pluginIndex Index of the plugin inside `this.plugins[]`.
+	 * @param plugin The actual pluginObject to run.
 	 * @param permitValues If true, values can be passed instead of functions for the plugin hook.
 	 * @param hookContext When passed, the plugin context can be overridden.
 	 */
 	private runHook<H extends PluginValueHooks>(
 		hookName: H,
 		args: Parameters<AddonHookFunction>,
-		pluginIndex: number,
+		plugin: Plugin,
 		permitValues: true,
 		hookContext?: ReplaceContext | null
 	): EnsurePromise<ReturnType<AddonHookFunction>>;
 	private runHook<H extends AsyncPluginHooks>(
 		hookName: H,
 		args: Parameters<PluginHooks[H]>,
-		pluginIndex: number,
+		plugin: Plugin,
 		permitValues: false,
 		hookContext?: ReplaceContext | null
 	): EnsurePromise<ReturnType<PluginHooks[H]>>;
 	private runHook<H extends AsyncPluginHooks>(
 		hookName: H,
 		args: Parameters<PluginHooks[H]>,
-		pluginIndex: number,
+		plugin: Plugin,
 		permitValues: boolean,
 		hookContext?: ReplaceContext | null
 	): EnsurePromise<ReturnType<PluginHooks[H]>> {
-		const plugin = this.plugins[pluginIndex];
 		const hook = plugin[hookName];
 		if (!hook) return undefined as any;
 
-		let context = this.pluginContexts[pluginIndex];
+		let context = this.pluginContexts.get(plugin)!;
 		if (hookContext) {
 			context = hookContext(context, plugin);
 		}
@@ -327,20 +326,19 @@ export class PluginDriver {
 	 * Run a sync plugin hook and return the result.
 	 * @param hookName Name of the plugin hook. Must be in `PluginHooks`.
 	 * @param args Arguments passed to the plugin hook.
-	 * @param pluginIndex Index of the plugin inside `this.plugins[]`.
+	 * @param plugin The acutal plugin
 	 * @param hookContext When passed, the plugin context can be overridden.
 	 */
 	private runHookSync<H extends SyncPluginHooks>(
 		hookName: H,
 		args: Parameters<PluginHooks[H]>,
-		pluginIndex: number,
+		plugin: Plugin,
 		hookContext?: ReplaceContext
 	): ReturnType<PluginHooks[H]> {
-		const plugin = this.plugins[pluginIndex];
 		const hook = plugin[hookName];
 		if (!hook) return undefined as any;
 
-		let context = this.pluginContexts[pluginIndex];
+		let context = this.pluginContexts.get(plugin)!;
 		if (hookContext) {
 			context = hookContext(context, plugin);
 		}

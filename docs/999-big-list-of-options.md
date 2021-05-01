@@ -135,7 +135,7 @@ Specifies the format of the generated bundle. One of the following:
 * `amd` – Asynchronous Module Definition, used with module loaders like RequireJS
 * `cjs` – CommonJS, suitable for Node and other bundlers (alias: `commonjs`)
 * `es` – Keep the bundle as an ES module file, suitable for other bundlers and inclusion as a `<script type=module>` tag in modern browsers (alias: `esm`, `module`)
-* `iife` – A self-executing function, suitable for inclusion as a `<script>` tag. (If you want to create a bundle for your application, you probably want to use this.)
+* `iife` – A self-executing function, suitable for inclusion as a `<script>` tag. (If you want to create a bundle for your application, you probably want to use this.). "iife" stands for "immediately-invoked [Function Expression](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/function)"
 * `umd` – Universal Module Definition, works as `amd`, `cjs` and `iife` all in one
 * `system` – Native format of the SystemJS loader (alias: `systemjs`)
 
@@ -319,6 +319,23 @@ buildWithCache()
   })
 ```
 
+#### makeAbsoluteExternalsRelative
+Type: `boolean | "ifRelativeSource"`<br>
+CLI: `--makeAbsoluteExternalsRelative`/`--no-makeAbsoluteExternalsRelative`<br>
+Default: `true`
+
+Determines if absolute external paths should be converted to relative paths in the output. This does not only apply to paths that are absolute in the source but also to paths that are resolved to an absolute path by either a plugin or Rollup core.
+
+For `true`, an external import like `import "/Users/Rollup/project/relative.js"` would be converted to a relative path. When converting an absolute path to a relative path, Rollup does *not* take the `file` or `dir` options into account, because those may not be present e.g. for builds using the JavaScript API. Instead, it assumes that the root of the generated bundle is located at the common shared parent directory of all modules that were included in the bundle. Assuming that the common parent directory of all modules is `"/Users/Rollup/project"`, the import from above would likely be converted to `import "./relative.js"` in the output. If the output chunk is itself nested in a sub-directory by choosing e.g. `chunkFileNames: "chunks/[name].js"`, the import would be `"../relative.js"`.
+
+As stated before, this would also apply to originally relative imports like `import "./relative.js"` that are resolved to an absolute path before they are marked as external by the [`external`](guide/en/#external) option.
+
+One common problem is that this mechanism will also apply to imports like `import "/absolute.js'"`, resulting in unexpected relative paths in the output.
+
+For this case, choosing `"ifRelativeSource"` will check if the original import was a relative import and only then convert it to a relative import in the output. Choosing `false` will keep all paths as absolute paths in the output.
+
+Note that when a relative path is directly marked as "external" using the [`external`](guide/en/#external) option, then it will be the same relative path in the output. When it is resolved first via a plugin or Rollup core and then marked as external, the above logic will apply.
+
 #### onwarn
 Type: `(warning: RollupWarning, defaultHandler: (warning: string | RollupWarning) => void) => void;`
 
@@ -359,7 +376,6 @@ export default {
   }
 };
 ```
-
 
 #### output.assetFileNames
 Type: `string | ((assetInfo: AssetInfo) => string)`<br>
@@ -1304,6 +1320,15 @@ Default: `false`
 
 Generate `const` declarations for exports rather than `var` declarations.
 
+#### output.sanitizeFileName
+Type: `boolean | (string) => string`<br>
+CLI: `--sanitizeFileName`/`no-sanitizeFileName`
+Default: `true`
+
+Set to `false` to disable all chunk name sanitizations (removal of `\0`, `?` and `*` characters).
+
+Alternatively set to a function to allow custom chunk name sanitization.
+
 #### output.strict
 Type: `boolean`<br>
 CLI: `--strict`/`--no-strict`<br>
@@ -1353,7 +1378,7 @@ Default: `false`
 If this option is provided, bundling will not fail if bindings are imported from a file that does not define these bindings. Instead, new variables will be created for these bindings with the value `undefined`.
 
 #### treeshake
-Type: `boolean | { annotations?: boolean, moduleSideEffects?: ModuleSideEffectsOption, propertyReadSideEffects?: boolean, tryCatchDeoptimization?: boolean, unknownGlobalSideEffects?: boolean }`<br>
+Type: `boolean | { annotations?: boolean, moduleSideEffects?: ModuleSideEffectsOption, propertyReadSideEffects?: boolean | 'always', tryCatchDeoptimization?: boolean, unknownGlobalSideEffects?: boolean }`<br>
 CLI: `--treeshake`/`--no-treeshake`<br>
 Default: `true`
 
@@ -1467,11 +1492,15 @@ console.log(foo);
 Note that despite the name, this option does not "add" side effects to modules that do not have side effects. If it is important that e.g. an empty module is "included" in the bundle because you need this for dependency tracking, the plugin interface allows you to designate modules as being excluded from tree-shaking via the [`resolveId`](guide/en/#resolveid), [`load`](guide/en/#load) or [`transform`](guide/en/#transform) hook.
 
 **treeshake.propertyReadSideEffects**<br>
-Type: `boolean`<br>
+Type: `boolean | 'always'`<br>
 CLI: `--treeshake.propertyReadSideEffects`/`--no-treeshake.propertyReadSideEffects`<br>
 Default: `true`
 
+If `true`, retain unused property reads that Rollup can determine to have side-effects. This includes accessing properties of `null` or `undefined` or triggering explicit getters via property access. Note that this does not cover destructuring assignment or getters on objects passed as function parameters.
+
 If `false`, assume reading a property of an object never has side effects. Depending on your code, disabling this option can significantly reduce bundle size but can potentially break functionality if you rely on getters or errors from illegal property access.
+
+If `'always'`, assume all member property accesses, including destructuring, have side effects. This setting is recommended for code relying on getters with side effects. It typically results in larger bundle size, but smaller than disabling `treeshake` altogether.
 
 ```javascript
 // Will be removed if treeshake.propertyReadSideEffects === false

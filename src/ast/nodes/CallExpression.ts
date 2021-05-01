@@ -21,12 +21,17 @@ import Identifier from './Identifier';
 import MemberExpression from './MemberExpression';
 import * as NodeType from './NodeType';
 import { ExpressionEntity } from './shared/Expression';
-import { ExpressionNode, IncludeChildren, INCLUDE_PARAMETERS, NodeBase } from './shared/Node';
+import {
+	Annotation,
+	ExpressionNode,
+	IncludeChildren,
+	INCLUDE_PARAMETERS,
+	NodeBase
+} from './shared/Node';
 import SpreadElement from './SpreadElement';
 import Super from './Super';
 
 export default class CallExpression extends NodeBase implements DeoptimizableEntity {
-	annotatedPure?: boolean;
 	arguments!: (ExpressionNode | SpreadElement)[];
 	callee!: ExpressionNode | Super;
 	optional!: boolean;
@@ -66,7 +71,11 @@ export default class CallExpression extends NodeBase implements DeoptimizableEnt
 		// ensure the returnExpression is set for the tree-shaking passes
 		this.getReturnExpression(SHARED_RECURSION_TRACKER);
 		// This deoptimizes "this" for non-namespace calls until we have a better solution
-		if (this.callee instanceof MemberExpression && !this.callee.variable) {
+		if (
+			this.callee instanceof MemberExpression &&
+			!this.callee.variable &&
+			this.callee.mayModifyThisWhenCalledAtPath([], SHARED_RECURSION_TRACKER)
+		) {
 			this.callee.object.deoptimizePath(UNKNOWN_PATH);
 		}
 		for (const argument of this.arguments) {
@@ -157,7 +166,7 @@ export default class CallExpression extends NodeBase implements DeoptimizableEnt
 		}
 		if (
 			(this.context.options.treeshake as NormalizedTreeshakingOptions).annotations &&
-			this.annotatedPure
+			this.annotations?.some((a: Annotation) => a.pure)
 		)
 			return false;
 		return (

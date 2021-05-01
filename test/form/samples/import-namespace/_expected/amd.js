@@ -20,9 +20,10 @@ define(['foo', 'bar'], function (foo, bar) { 'use strict';
 		return Object.freeze(n);
 	}
 
+	var foo__namespace = /*#__PURE__*/_interopNamespace(foo);
 	var bar__namespace = /*#__PURE__*/_interopNamespace(bar);
 
-	foo.x();
+	foo__namespace.x();
 	console.log(bar__namespace);
 
 });
