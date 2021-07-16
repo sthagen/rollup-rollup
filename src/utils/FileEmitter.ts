@@ -42,6 +42,8 @@ function generateAssetFileName(
 				: outputOptions.assetFileNames,
 			'output.assetFileNames',
 			{
+				ext: () => extname(emittedName).substr(1),
+				extname: () => extname(emittedName),
 				hash() {
 					const hash = createHash();
 					hash.update(emittedName);
@@ -49,8 +51,6 @@ function generateAssetFileName(
 					hash.update(source);
 					return hash.digest('hex').substr(0, 8);
 				},
-				ext: () => extname(emittedName).substr(1),
-				extname: () => extname(emittedName),
 				name: () => emittedName.substr(0, emittedName.length - extname(emittedName).length)
 			}
 		),
@@ -84,10 +84,10 @@ interface ConsumedAsset {
 }
 
 interface EmittedFile {
+	[key: string]: unknown;
 	fileName?: string;
 	name?: string;
 	type: 'chunk' | 'asset';
-	[key: string]: unknown;
 }
 
 type ConsumedFile = ConsumedChunk | ConsumedAsset;
@@ -98,7 +98,7 @@ export const FILE_PLACEHOLDER: FilePlaceholder = {
 
 function hasValidType(
 	emittedFile: unknown
-): emittedFile is { type: 'asset' | 'chunk'; [key: string]: unknown } {
+): emittedFile is { [key: string]: unknown; type: 'asset' | 'chunk' } {
 	return Boolean(
 		emittedFile &&
 			((emittedFile as { [key: string]: unknown }).type === 'asset' ||
@@ -106,9 +106,12 @@ function hasValidType(
 	);
 }
 
-function hasValidName(emittedFile: { type: 'asset' | 'chunk'; [key: string]: unknown; }): emittedFile is EmittedFile {
+function hasValidName(emittedFile: {
+	[key: string]: unknown;
+	type: 'asset' | 'chunk';
+}): emittedFile is EmittedFile {
 	const validatedName = emittedFile.fileName || emittedFile.name;
-	return !validatedName || typeof validatedName === 'string' && !isPathFragment(validatedName);
+	return !validatedName || (typeof validatedName === 'string' && !isPathFragment(validatedName));
 }
 
 function getValidSource(
@@ -304,7 +307,7 @@ export class FileEmitter {
 			type: 'chunk'
 		};
 		this.graph.moduleLoader
-			.emitChunk((emittedChunk as unknown) as EmittedChunk)
+			.emitChunk(emittedChunk as unknown as EmittedChunk)
 			.then(module => (consumedChunk.module = module))
 			.catch(() => {
 				// Avoid unhandled Promise rejection as the error will be thrown later
@@ -326,12 +329,11 @@ export class FileEmitter {
 			generateAssetFileName(consumedFile.name, source, this.outputOptions!, bundle);
 
 		// We must not modify the original assets to avoid interaction between outputs
-		const assetWithFileName = { ...consumedFile, source, fileName };
+		const assetWithFileName = { ...consumedFile, fileName, source };
 		this.filesByReferenceId.set(referenceId, assetWithFileName);
-		const options = this.options;
+		const { options } = this;
 		bundle[fileName] = {
 			fileName,
-			name: consumedFile.name,
 			get isAsset(): true {
 				warnDeprecation(
 					'Accessing "isAsset" on files in the bundle is deprecated, please use "type === \'asset\'" instead',
@@ -341,6 +343,7 @@ export class FileEmitter {
 
 				return true;
 			},
+			name: consumedFile.name,
 			source,
 			type: 'asset'
 		};
@@ -351,8 +354,7 @@ function findExistingAssetFileNameWithSource(
 	bundle: OutputBundleWithPlaceholders,
 	source: string | Uint8Array
 ): string | null {
-	for (const fileName of Object.keys(bundle)) {
-		const outputFile = bundle[fileName];
+	for (const [fileName, outputFile] of Object.entries(bundle)) {
 		if (outputFile.type === 'asset' && areSourcesEqual(source, outputFile.source)) return fileName;
 	}
 	return null;

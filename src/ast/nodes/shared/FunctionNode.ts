@@ -1,13 +1,17 @@
-import { CallOptions } from '../../CallOptions';
+import { NormalizedTreeshakingOptions } from '../../../rollup/types';
+import { CallOptions, NO_ARGS } from '../../CallOptions';
 import { BROKEN_FLOW_NONE, HasEffectsContext, InclusionContext } from '../../ExecutionContext';
+import { EVENT_CALLED, NodeEvent } from '../../NodeEvents';
 import FunctionScope from '../../scopes/FunctionScope';
-import { ObjectPath, UnknownKey, UNKNOWN_PATH } from '../../utils/PathTracker';
-import { UnknownObjectExpression, UNKNOWN_EXPRESSION } from '../../values';
+import { ObjectPath, UNKNOWN_PATH, UnknownKey } from '../../utils/PathTracker';
 import BlockStatement from '../BlockStatement';
 import Identifier, { IdentifierWithVariable } from '../Identifier';
 import RestElement from '../RestElement';
 import SpreadElement from '../SpreadElement';
+import { ExpressionEntity, UNKNOWN_EXPRESSION } from './Expression';
 import { ExpressionNode, GenericEsTreeNode, IncludeChildren, NodeBase } from './Node';
+import { ObjectEntity } from './ObjectEntity';
+import { OBJECT_PROTOTYPE } from './ObjectPrototype';
 import { PatternNode } from './Pattern';
 
 export default class FunctionNode extends NodeBase {
@@ -16,16 +20,15 @@ export default class FunctionNode extends NodeBase {
 	id!: IdentifierWithVariable | null;
 	params!: PatternNode[];
 	preventChildBlockScope!: true;
-	referencesThis!: boolean;
 	scope!: FunctionScope;
-
+	private deoptimizedReturn = false;
 	private isPrototypeDeoptimized = false;
 
-	createScope(parentScope: FunctionScope) {
+	createScope(parentScope: FunctionScope): void {
 		this.scope = new FunctionScope(parentScope, this.context);
 	}
 
-	deoptimizePath(path: ObjectPath) {
+	deoptimizePath(path: ObjectPath): void {
 		if (path.length === 1) {
 			if (path[0] === 'prototype') {
 				this.isPrototypeDeoptimized = true;
@@ -39,20 +42,46 @@ export default class FunctionNode extends NodeBase {
 		}
 	}
 
-	getReturnExpressionWhenCalledAtPath(path: ObjectPath) {
-		return path.length === 0 ? this.scope.getReturnExpression() : UNKNOWN_EXPRESSION;
+	// TODO for completeness, we should also track other events here
+	deoptimizeThisOnEventAtPath(
+		event: NodeEvent,
+		path: ObjectPath,
+		thisParameter: ExpressionEntity
+	): void {
+		if (event === EVENT_CALLED) {
+			if (path.length > 0) {
+				thisParameter.deoptimizePath(UNKNOWN_PATH);
+			} else {
+				this.scope.thisVariable.addEntityToBeDeoptimized(thisParameter);
+			}
+		}
 	}
 
-	hasEffects() {
+	getReturnExpressionWhenCalledAtPath(path: ObjectPath): ExpressionEntity {
+		if (path.length !== 0) {
+			return UNKNOWN_EXPRESSION;
+		}
+		if (this.async) {
+			if (!this.deoptimizedReturn) {
+				this.deoptimizedReturn = true;
+				this.scope.getReturnExpression().deoptimizePath(UNKNOWN_PATH);
+				this.context.requestTreeshakingPass();
+			}
+			return UNKNOWN_EXPRESSION;
+		}
+		return this.scope.getReturnExpression();
+	}
+
+	hasEffects(): boolean {
 		return this.id !== null && this.id.hasEffects();
 	}
 
-	hasEffectsWhenAccessedAtPath(path: ObjectPath) {
+	hasEffectsWhenAccessedAtPath(path: ObjectPath): boolean {
 		if (path.length <= 1) return false;
 		return path.length > 2 || path[0] !== 'prototype' || this.isPrototypeDeoptimized;
 	}
 
-	hasEffectsWhenAssignedAtPath(path: ObjectPath) {
+	hasEffectsWhenAssignedAtPath(path: ObjectPath): boolean {
 		if (path.length <= 1) {
 			return false;
 		}
@@ -63,22 +92,41 @@ export default class FunctionNode extends NodeBase {
 		path: ObjectPath,
 		callOptions: CallOptions,
 		context: HasEffectsContext
-	) {
+	): boolean {
 		if (path.length > 0) return true;
+		if (this.async) {
+			const { propertyReadSideEffects } = this.context.options
+				.treeshake as NormalizedTreeshakingOptions;
+			const returnExpression = this.scope.getReturnExpression();
+			if (
+				returnExpression.hasEffectsWhenCalledAtPath(
+					['then'],
+					{ args: NO_ARGS, thisParam: null, withNew: false },
+					context
+				) ||
+				(propertyReadSideEffects &&
+					(propertyReadSideEffects === 'always' ||
+						returnExpression.hasEffectsWhenAccessedAtPath(['then'], context)))
+			) {
+				return true;
+			}
+		}
 		for (const param of this.params) {
 			if (param.hasEffects(context)) return true;
 		}
 		const thisInit = context.replacedVariableInits.get(this.scope.thisVariable);
 		context.replacedVariableInits.set(
 			this.scope.thisVariable,
-			callOptions.withNew ? new UnknownObjectExpression() : UNKNOWN_EXPRESSION
+			callOptions.withNew
+				? new ObjectEntity(Object.create(null), OBJECT_PROTOTYPE)
+				: UNKNOWN_EXPRESSION
 		);
 		const { brokenFlow, ignore } = context;
 		context.ignore = {
 			breaks: false,
 			continues: false,
 			labels: new Set(),
-			returnAwaitYield: true
+			returnYield: true
 		};
 		if (this.body.hasEffects(context)) return true;
 		context.brokenFlow = brokenFlow;
@@ -91,7 +139,7 @@ export default class FunctionNode extends NodeBase {
 		return false;
 	}
 
-	include(context: InclusionContext, includeChildrenRecursively: IncludeChildren) {
+	include(context: InclusionContext, includeChildrenRecursively: IncludeChildren): void {
 		this.included = true;
 		if (this.id) this.id.include();
 		const hasArguments = this.scope.argumentsVariable.included;
@@ -110,7 +158,7 @@ export default class FunctionNode extends NodeBase {
 		this.scope.includeCallArguments(context, args);
 	}
 
-	initialise() {
+	initialise(): void {
 		if (this.id !== null) {
 			this.id.declare('function', this);
 		}
@@ -121,14 +169,7 @@ export default class FunctionNode extends NodeBase {
 		this.body.addImplicitReturnExpressionToScope();
 	}
 
-	mayModifyThisWhenCalledAtPath(
-		path: ObjectPath
-	) {
-		return path.length ? true : this.referencesThis
-	}
-
-	parseNode(esTreeNode: GenericEsTreeNode) {
-		this.referencesThis = false;
+	parseNode(esTreeNode: GenericEsTreeNode): void {
 		this.body = new this.context.nodeConstructors.BlockStatement(
 			esTreeNode.body,
 			this,

@@ -9,27 +9,30 @@ export default class YieldExpression extends NodeBase {
 	argument!: ExpressionNode | null;
 	delegate!: boolean;
 	type!: NodeType.tYieldExpression;
+	protected deoptimized = false;
 
-	bind() {
-		super.bind();
-		if (this.argument !== null) {
-			this.argument.deoptimizePath(UNKNOWN_PATH);
-		}
-	}
-
-	hasEffects(context: HasEffectsContext) {
+	hasEffects(context: HasEffectsContext): boolean {
+		if (!this.deoptimized) this.applyDeoptimizations();
 		return (
-			!context.ignore.returnAwaitYield ||
-			(this.argument !== null && this.argument.hasEffects(context))
+			!context.ignore.returnYield || (this.argument !== null && this.argument.hasEffects(context))
 		);
 	}
 
-	render(code: MagicString, options: RenderOptions) {
+	render(code: MagicString, options: RenderOptions): void {
 		if (this.argument) {
 			this.argument.render(code, options, { preventASI: true });
 			if (this.argument.start === this.start + 5 /* 'yield'.length */) {
 				code.prependLeft(this.start + 5, ' ');
 			}
+		}
+	}
+
+	protected applyDeoptimizations(): void {
+		this.deoptimized = true;
+		const { argument } = this;
+		if (argument) {
+			argument.deoptimizePath(UNKNOWN_PATH);
+			this.context.requestTreeshakingPass();
 		}
 	}
 }

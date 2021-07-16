@@ -8,6 +8,8 @@ import {
 import { EMPTY_ARRAY } from './utils/blank';
 import { makeLegal } from './utils/identifierHelpers';
 import { normalize, relative } from './utils/path';
+import { printQuotedStringList } from './utils/printStringList';
+import relativeId from './utils/relativeId';
 
 export default class ExternalModule {
 	chunk: void;
@@ -19,10 +21,10 @@ export default class ExternalModule {
 	importers: string[] = [];
 	info: ModuleInfo;
 	mostCommonSuggestion = 0;
-	namespaceVariableName = '';
 	nameSuggestions: { [name: string]: number };
+	namespaceVariableName = '';
 	reexported = false;
-	renderPath: string = undefined as any;
+	renderPath: string = undefined as never;
 	suggestedVariableName: string;
 	used = false;
 	variableName = '';
@@ -40,13 +42,13 @@ export default class ExternalModule {
 		this.declarations = Object.create(null);
 		this.exportedVariables = new Map();
 
-		const module = this;
+		const { importers, dynamicImporters } = this;
 		this.info = {
 			ast: null,
 			code: null,
 			dynamicallyImportedIds: EMPTY_ARRAY,
 			get dynamicImporters() {
-				return module.dynamicImporters.sort();
+				return dynamicImporters.sort();
 			},
 			hasModuleSideEffects,
 			id,
@@ -54,7 +56,7 @@ export default class ExternalModule {
 			implicitlyLoadedBefore: EMPTY_ARRAY,
 			importedIds: EMPTY_ARRAY,
 			get importers() {
-				return module.importers.sort();
+				return importers.sort();
 			},
 			isEntry: false,
 			isExternal: true,
@@ -72,7 +74,7 @@ export default class ExternalModule {
 		return declaration;
 	}
 
-	setRenderPath(options: NormalizedOutputOptions, inputBase: string) {
+	setRenderPath(options: NormalizedOutputOptions, inputBase: string): string {
 		this.renderPath =
 			typeof options.paths === 'function' ? options.paths(this.id) : options.paths[this.id];
 		if (!this.renderPath) {
@@ -83,7 +85,7 @@ export default class ExternalModule {
 		return this.renderPath;
 	}
 
-	suggestName(name: string) {
+	suggestName(name: string): void {
 		if (!this.nameSuggestions[name]) this.nameSuggestions[name] = 0;
 		this.nameSuggestions[name] += 1;
 
@@ -93,38 +95,29 @@ export default class ExternalModule {
 		}
 	}
 
-	warnUnusedImports() {
+	warnUnusedImports(): void {
 		const unused = Object.keys(this.declarations).filter(name => {
 			if (name === '*') return false;
 			const declaration = this.declarations[name];
 			return !declaration.included && !this.reexported && !declaration.referenced;
 		});
-
 		if (unused.length === 0) return;
-
-		const names =
-			unused.length === 1
-				? `'${unused[0]}' is`
-				: `${unused
-						.slice(0, -1)
-						.map(name => `'${name}'`)
-						.join(', ')} and '${unused.slice(-1)}' are`;
 
 		const importersSet = new Set<string>();
 		for (const name of unused) {
-			const {importers, dynamicImporters} = this.declarations[name].module;
-
-			if (Array.isArray(importers)) importers.forEach(v => importersSet.add(v));
-			if (Array.isArray(dynamicImporters)) dynamicImporters.forEach(v => importersSet.add(v));
+			const { importers } = this.declarations[name].module;
+			for (const importer of importers) {
+				importersSet.add(importer);
+			}
 		}
-
-		const importersArray = Array.from(importersSet);
-
-		const importerList = ' in' + importersArray.map(s => `\n\t${s};`);
-
+		const importersArray = [...importersSet];
 		this.options.onwarn({
 			code: 'UNUSED_EXTERNAL_IMPORT',
-			message: `${names} imported from external module '${this.id}' but never used${importerList}`,
+			message: `${printQuotedStringList(unused, ['is', 'are'])} imported from external module "${
+				this.id
+			}" but never used in ${printQuotedStringList(
+				importersArray.map(importer => relativeId(importer))
+			)}.`,
 			names: unused,
 			source: this.id,
 			sources: importersArray

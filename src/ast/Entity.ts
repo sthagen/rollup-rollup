@@ -1,9 +1,8 @@
 import { HasEffectsContext } from './ExecutionContext';
 import { ObjectPath } from './utils/PathTracker';
 
-export interface Entity {
-	toString: () => string;
-}
+// eslint-disable-next-line @typescript-eslint/no-empty-interface
+export interface Entity {}
 
 export interface WritableEntity extends Entity {
 	/**
@@ -13,5 +12,5 @@ export interface WritableEntity extends Entity {
 	 * expression of this node is reassigned as well.
 	 */
 	deoptimizePath(path: ObjectPath): void;
-	hasEffectsWhenAssignedAtPath(path: ObjectPath, execution: HasEffectsContext): boolean;
+	hasEffectsWhenAssignedAtPath(path: ObjectPath, context: HasEffectsContext): boolean;
 }

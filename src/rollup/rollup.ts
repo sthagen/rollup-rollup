@@ -1,6 +1,7 @@
 import { version as rollupVersion } from 'package.json';
 import Bundle from '../Bundle';
 import Graph from '../Graph';
+import { PluginDriver } from '../utils/PluginDriver';
 import { ensureArray } from '../utils/ensureArray';
 import { errAlreadyClosed, errCannotEmitFromOptionsHook, error } from '../utils/error';
 import { writeFile } from '../utils/fs';
@@ -8,7 +9,6 @@ import { normalizeInputOptions } from '../utils/options/normalizeInputOptions';
 import { normalizeOutputOptions } from '../utils/options/normalizeOutputOptions';
 import { GenericConfigObject } from '../utils/options/options';
 import { basename, dirname, resolve } from '../utils/path';
-import { PluginDriver } from '../utils/PluginDriver';
 import { ANONYMOUS_OUTPUT_PLUGIN_PREFIX, ANONYMOUS_PLUGIN_PREFIX } from '../utils/pluginUtils';
 import { SOURCEMAPPING_URL } from '../utils/sourceMappingURL';
 import { getTimings, initialiseTimers, timeEnd, timeStart } from '../utils/timers';
@@ -20,6 +20,7 @@ import {
 	OutputOptions,
 	Plugin,
 	RollupBuild,
+	RollupOptions,
 	RollupOutput,
 	RollupWatcher
 } from './types';
@@ -66,7 +67,6 @@ export async function rollupInternal(
 
 	const result: RollupBuild = {
 		cache: useCache ? graph.getCache() : undefined,
-		closed: false,
 		async close() {
 			if (result.closed) return;
 
@@ -74,6 +74,7 @@ export async function rollupInternal(
 
 			await graph.pluginDriver.hookParallel('closeBundle', []);
 		},
+		closed: false,
 		async generate(rawOutputOptions: OutputOptions) {
 			if (result.closed) return error(errAlreadyClosed());
 
@@ -170,9 +171,7 @@ async function handleGenerateWrite(
 				message: 'You must specify "output.file" or "output.dir" for the build.'
 			});
 		}
-		await Promise.all(
-			Object.keys(generated).map(chunkId => writeOutputFile(generated[chunkId], outputOptions))
-		);
+		await Promise.all(Object.values(generated).map(chunk => writeOutputFile(chunk, outputOptions)));
 		await outputPluginDriver.hookParallel('writeBundle', [outputOptions, generated]);
 	}
 	return createOutput(generated);
@@ -220,20 +219,22 @@ function getOutputOptions(
 					setAssetSource: emitError
 				};
 			}
-		) as GenericConfigObject,
+		),
 		inputOptions,
 		unsetInputOptions
 	);
 }
 
-function createOutput(outputBundle: Record<string, OutputChunk | OutputAsset | {}>): RollupOutput {
+function createOutput(
+	outputBundle: Record<string, OutputChunk | OutputAsset | Record<string, never>>
+): RollupOutput {
 	return {
-		output: (Object.keys(outputBundle)
-			.map(fileName => outputBundle[fileName])
-			.filter(outputFile => Object.keys(outputFile).length > 0) as (
-			| OutputChunk
-			| OutputAsset
-		)[]).sort((outputFileA, outputFileB) => {
+		output: (
+			Object.values(outputBundle).filter(outputFile => Object.keys(outputFile).length > 0) as (
+				| OutputChunk
+				| OutputAsset
+			)[]
+		).sort((outputFileA, outputFileB) => {
 			const fileTypeA = getSortingFileType(outputFileA);
 			const fileTypeB = getSortingFileType(outputFileB);
 			if (fileTypeA === fileTypeB) return 0;
@@ -284,4 +285,13 @@ function writeOutputFile(
 	}
 
 	return Promise.all([writeFile(fileName, source), writeSourceMapPromise]);
+}
+
+/**
+ * Auxiliary function for defining rollup configuration
+ * Mainly to facilitate IDE code prompts, after all, export default does not prompt, even if you add @type annotations, it is not accurate
+ * @param options
+ */
+export function defineConfig<T extends RollupOptions | RollupOptions[]>(options: T): T {
+	return options;
 }

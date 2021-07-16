@@ -21,7 +21,7 @@ class Source {
 	}
 
 	traceSegment(line: number, column: number, name: string): SourceMapSegmentObject {
-		return { line, column, name, source: this };
+		return { column, line, name, source: this };
 	}
 }
 
@@ -50,6 +50,7 @@ class Link {
 		const sources: string[] = [];
 		const sourcesContent: string[] = [];
 		const names: string[] = [];
+		const nameIndexMap: Map<string, number> = new Map();
 
 		const mappings = [];
 
@@ -93,10 +94,11 @@ class Link {
 					];
 
 					if (traced.name) {
-						let nameIndex = names.indexOf(traced.name);
-						if (nameIndex === -1) {
+						let nameIndex = nameIndexMap.get(traced.name);
+						if (nameIndex === undefined) {
 							nameIndex = names.length;
 							names.push(traced.name);
+							nameIndexMap.set(traced.name, nameIndex);
 						}
 
 						(tracedSegment as SourceMapSegment)[4] = nameIndex;
@@ -109,7 +111,7 @@ class Link {
 			mappings.push(tracedLine);
 		}
 
-		return { sources, sourcesContent, names, mappings };
+		return { mappings, names, sources, sourcesContent };
 	}
 
 	traceSegment(line: number, column: number, name: string): SourceMapSegmentObject | null {
@@ -203,7 +205,7 @@ export function collapseSourcemaps(
 	bundleSourcemapChain: DecodedSourceMapOrMissing[],
 	excludeContent: boolean | undefined,
 	warn: WarningHandler
-) {
+): SourceMap {
 	const linkMap = getLinkMap(warn);
 	const moduleSources = modules
 		.filter(module => !module.excludeFromSourcemap)
@@ -233,7 +235,7 @@ export function collapseSourcemaps(
 
 	sourcesContent = (excludeContent ? null : sourcesContent) as string[];
 
-	return new SourceMap({ file, sources, sourcesContent, names, mappings });
+	return new SourceMap({ file, mappings, names, sources, sourcesContent });
 }
 
 export function collapseSourcemap(

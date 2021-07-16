@@ -14,6 +14,7 @@ import {
 	ResolveIdResult,
 	SourceDescription
 } from './rollup/types';
+import { PluginDriver } from './utils/PluginDriver';
 import { EMPTY_OBJECT } from './utils/blank';
 import {
 	errBadLoader,
@@ -29,7 +30,7 @@ import {
 } from './utils/error';
 import { readFile } from './utils/fs';
 import { isAbsolute, isRelative, resolve } from './utils/path';
-import { PluginDriver } from './utils/PluginDriver';
+import { Queue } from './utils/queue';
 import relativeId from './utils/relativeId';
 import { resolveId } from './utils/resolveId';
 import { timeEnd, timeStart } from './utils/timers';
@@ -51,8 +52,9 @@ export class ModuleLoader {
 	private readonly hasModuleSideEffects: HasModuleSideEffects;
 	private readonly implicitEntryModules = new Set<Module>();
 	private readonly indexedEntryModules: { index: number; module: Module }[] = [];
-	private latestLoadModulesPromise: Promise<any> = Promise.resolve();
+	private latestLoadModulesPromise: Promise<unknown> = Promise.resolve();
 	private nextEntryModuleIndex = 0;
+	private readQueue = new Queue();
 
 	constructor(
 		private readonly graph: Graph,
@@ -63,6 +65,7 @@ export class ModuleLoader {
 		this.hasModuleSideEffects = options.treeshake
 			? options.treeshake.moduleSideEffects
 			: () => true;
+		this.readQueue.maxParallel = options.maxParallelFileReads;
 	}
 
 	async addAdditionalModules(unresolvedModules: string[]): Promise<Module[]> {
@@ -99,7 +102,7 @@ export class ModuleLoader {
 						indexedModule => indexedModule.module === entryModule
 					);
 					if (!existingIndexedModule) {
-						this.indexedEntryModules.push({ module: entryModule, index: moduleIndex });
+						this.indexedEntryModules.push({ index: moduleIndex, module: entryModule });
 					} else {
 						existingIndexedModule.index = Math.min(existingIndexedModule.index, moduleIndex);
 					}
@@ -217,7 +220,9 @@ export class ModuleLoader {
 		timeStart('load modules', 3);
 		let source: string | SourceDescription;
 		try {
-			source = (await this.pluginDriver.hookFirst('load', [id])) ?? (await readFile(id));
+			source =
+				(await this.pluginDriver.hookFirst('load', [id])) ??
+				(await this.readQueue.run(async () => readFile(id)));
 		} catch (err) {
 			timeEnd('load modules', 3);
 			let msg = `Could not load ${id}`;
@@ -388,6 +393,13 @@ export class ModuleLoader {
 		)) {
 			module.dependencies.add(dependency);
 			dependency.importers.push(module.id);
+		}
+		if (!this.options.treeshake || module.info.hasModuleSideEffects === 'no-treeshake') {
+			for (const dependency of module.dependencies) {
+				if (dependency instanceof Module) {
+					dependency.importedFromNotTreeshaken = true;
+				}
+			}
 		}
 	}
 

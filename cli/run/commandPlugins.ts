@@ -3,14 +3,23 @@ import { InputOptions } from '../../src/rollup/types';
 import { stdinPlugin } from './stdin';
 import { waitForInputPlugin } from './waitForInput';
 
-export function addCommandPluginsToInputOptions(inputOptions: InputOptions, command: any) {
+export function addCommandPluginsToInputOptions(
+	inputOptions: InputOptions,
+	command: Record<string, unknown>
+): void {
 	if (command.stdin !== false) {
 		inputOptions.plugins!.push(stdinPlugin(command.stdin));
 	}
 	if (command.waitForBundleInput === true) {
 		inputOptions.plugins!.push(waitForInputPlugin());
 	}
-	const commandPlugin = command.plugin;
+	addPluginsFromCommandOption(command.plugin, inputOptions);
+}
+
+export function addPluginsFromCommandOption(
+	commandPlugin: unknown,
+	inputOptions: InputOptions
+): void {
 	if (commandPlugin) {
 		const plugins = Array.isArray(commandPlugin) ? commandPlugin : [commandPlugin];
 		for (const plugin of plugins) {
@@ -27,14 +36,14 @@ export function addCommandPluginsToInputOptions(inputOptions: InputOptions, comm
 	}
 }
 
-function loadAndRegisterPlugin(inputOptions: InputOptions, pluginText: string) {
+function loadAndRegisterPlugin(inputOptions: InputOptions, pluginText: string): void {
 	let plugin: any = null;
 	let pluginArg: any = undefined;
 	if (pluginText[0] === '{') {
 		// -p "{transform(c,i){...}}"
 		plugin = new Function('return ' + pluginText);
 	} else {
-		const match = pluginText.match(/^([@.\/\\\w|^{}-]+)(=(.*))?$/);
+		const match = pluginText.match(/^([@./\\\w|^{}-]+)(=(.*))?$/);
 		if (match) {
 			// -p plugin
 			// -p plugin=arg
@@ -43,7 +52,7 @@ function loadAndRegisterPlugin(inputOptions: InputOptions, pluginText: string) {
 		} else {
 			throw new Error(`Invalid --plugin argument format: ${JSON.stringify(pluginText)}`);
 		}
-		if (!/^\.|^rollup-plugin-|[@\/\\]/.test(pluginText)) {
+		if (!/^\.|^rollup-plugin-|[@/\\]/.test(pluginText)) {
 			// Try using plugin prefix variations first if applicable.
 			// Prefix order is significant - left has higher precedence.
 			for (const prefix of ['@rollup/plugin-', 'rollup-plugin-']) {

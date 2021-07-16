@@ -15,11 +15,12 @@ module.exports = {
 						preserveParens: false,
 						sourceType: 'module'
 					},
-					acornInjectPlugins: [null, null, null],
+					acornInjectPlugins: [],
 					context: 'undefined',
 					experimentalCacheExpiry: 10,
 					input: ['used'],
 					makeAbsoluteExternalsRelative: true,
+					maxParallelFileReads: 20,
 					perf: false,
 					plugins: [
 						{
@@ -46,7 +47,7 @@ module.exports = {
 				});
 				assert.ok(/^\d+\.\d+\.\d+/.test(this.meta.rollupVersion));
 				assert.strictEqual(this.meta.watchMode, false);
-				return Object.assign({}, options, { input: 'used' });
+				return { ...options, input: 'used' };
 			}
 		}
 	}

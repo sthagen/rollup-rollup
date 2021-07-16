@@ -4,12 +4,20 @@ import {
 	MergedRollupOptions,
 	OutputOptions,
 	RollupCache,
+	TreeshakingPreset,
 	WarningHandler,
 	WarningHandlerWithDefault
 } from '../../rollup/types';
 import { ensureArray } from '../ensureArray';
+import { errInvalidOption, error } from '../error';
+import { printQuotedStringList } from '../printStringList';
 import { CommandConfigObject } from './normalizeInputOptions';
-import { defaultOnWarn, GenericConfigObject, warnUnknownOptions } from './options';
+import {
+	defaultOnWarn,
+	GenericConfigObject,
+	treeshakePresets,
+	warnUnknownOptions
+} from './options';
 
 export const commandAliases: { [key: string]: string } = {
 	c: 'config',
@@ -55,7 +63,8 @@ export function mergeOptions(
 			'silent',
 			'failAfterWarnings',
 			'stdin',
-			'waitForBundleInput'
+			'waitForBundleInput',
+			'configPlugin'
 		),
 		'CLI flags',
 		warn,
@@ -99,7 +108,10 @@ function mergeInputOptions(
 	const getOption = (name: string): any => overrides[name] ?? config[name];
 	const inputOptions: CompleteInputOptions<keyof InputOptions> = {
 		acorn: getOption('acorn'),
-		acornInjectPlugins: config.acornInjectPlugins as Function | Function[] | undefined,
+		acornInjectPlugins: config.acornInjectPlugins as
+			| (() => unknown)[]
+			| (() => unknown)
+			| undefined,
 		cache: config.cache as false | RollupCache | undefined,
 		context: getOption('context'),
 		experimentalCacheExpiry: getOption('experimentalCacheExpiry'),
@@ -108,6 +120,7 @@ function mergeInputOptions(
 		input: getOption('input') || [],
 		makeAbsoluteExternalsRelative: getOption('makeAbsoluteExternalsRelative'),
 		manualChunks: getOption('manualChunks'),
+		maxParallelFileReads: getOption('maxParallelFileReads'),
 		moduleContext: getOption('moduleContext'),
 		onwarn: getOnWarn(config, defaultOnWarnHandler),
 		perf: getOption('perf'),
@@ -117,7 +130,7 @@ function mergeInputOptions(
 		preserveSymlinks: getOption('preserveSymlinks'),
 		shimMissingExports: getOption('shimMissingExports'),
 		strictDeprecations: getOption('strictDeprecations'),
-		treeshake: getObjectOption(config, overrides, 'treeshake'),
+		treeshake: getObjectOption(config, overrides, 'treeshake', objectifyTreeshakeOption),
 		watch: getWatch(config, overrides, 'watch')
 	};
 
@@ -153,30 +166,53 @@ const getOnWarn = (
 const getObjectOption = (
 	config: GenericConfigObject,
 	overrides: GenericConfigObject,
-	name: string
+	name: string,
+	objectifyValue: (value: unknown) => Record<string, unknown> | undefined = value =>
+		(typeof value === 'object' ? value : {}) as Record<string, unknown> | undefined
 ) => {
-	const commandOption = normalizeObjectOptionValue(overrides[name]);
-	const configOption = normalizeObjectOptionValue(config[name]);
+	const commandOption = normalizeObjectOptionValue(overrides[name], objectifyValue);
+	const configOption = normalizeObjectOptionValue(config[name], objectifyValue);
 	if (commandOption !== undefined) {
 		return commandOption && { ...configOption, ...commandOption };
 	}
 	return configOption;
 };
 
+const objectifyTreeshakeOption = (value: unknown): Record<string, unknown> => {
+	if (typeof value === 'string') {
+		const preset = treeshakePresets[value as TreeshakingPreset];
+		if (preset) {
+			return preset as unknown as Record<string, unknown>;
+		}
+		error(
+			errInvalidOption(
+				'treeshake',
+				`valid values are false, true, ${printQuotedStringList(
+					Object.keys(treeshakePresets)
+				)}. You can also supply an object for more fine-grained control`
+			)
+		);
+	}
+	return typeof value === 'object' ? (value as Record<string, unknown>) : {};
+};
+
 const getWatch = (config: GenericConfigObject, overrides: GenericConfigObject, name: string) =>
 	config.watch !== false && getObjectOption(config, overrides, name);
 
-export const normalizeObjectOptionValue = (optionValue: any) => {
+export const normalizeObjectOptionValue = (
+	optionValue: unknown,
+	objectifyValue: (value: unknown) => Record<string, unknown> | undefined
+): Record<string, unknown> | undefined => {
 	if (!optionValue) {
-		return optionValue;
+		return optionValue as undefined;
 	}
 	if (Array.isArray(optionValue)) {
-		return optionValue.reduce((result, value) => value && result && { ...result, ...value }, {});
+		return optionValue.reduce(
+			(result, value) => value && result && { ...result, ...objectifyValue(value) },
+			{}
+		);
 	}
-	if (typeof optionValue !== 'object') {
-		return {};
-	}
-	return optionValue;
+	return objectifyValue(optionValue);
 };
 
 type CompleteOutputOptions<U extends keyof OutputOptions> = {

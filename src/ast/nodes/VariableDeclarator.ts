@@ -19,29 +19,32 @@ export default class VariableDeclarator extends NodeBase {
 	init!: ExpressionNode | null;
 	type!: NodeType.tVariableDeclarator;
 
-	declareDeclarator(kind: string) {
+	declareDeclarator(kind: string): void {
 		this.id.declare(kind, this.init || UNDEFINED_EXPRESSION);
 	}
 
-	deoptimizePath(path: ObjectPath) {
+	deoptimizePath(path: ObjectPath): void {
 		this.id.deoptimizePath(path);
 	}
 
 	hasEffects(context: HasEffectsContext): boolean {
-		return this.id.hasEffects(context) || (this.init !== null && this.init.hasEffects(context));
+		const initEffect = this.init !== null && this.init.hasEffects(context);
+		this.id.markDeclarationReached();
+		return initEffect || this.id.hasEffects(context);
 	}
 
-	include(context: InclusionContext, includeChildrenRecursively: IncludeChildren) {
+	include(context: InclusionContext, includeChildrenRecursively: IncludeChildren): void {
 		this.included = true;
-		if (includeChildrenRecursively || this.id.shouldBeIncluded(context)) {
-			this.id.include(context, includeChildrenRecursively);
-		}
 		if (this.init) {
 			this.init.include(context, includeChildrenRecursively);
 		}
+		this.id.markDeclarationReached();
+		if (includeChildrenRecursively || this.id.shouldBeIncluded(context)) {
+			this.id.include(context, includeChildrenRecursively);
+		}
 	}
 
-	render(code: MagicString, options: RenderOptions) {
+	render(code: MagicString, options: RenderOptions): void {
 		const renderId = this.id.included;
 		if (renderId) {
 			this.id.render(code, options);

@@ -1,6 +1,7 @@
 import { bold, gray, yellow } from 'colorette';
 import { RollupWarning } from '../../src/rollup/types';
 import { getOrCreate } from '../../src/utils/getOrCreate';
+import { printQuotedStringList } from '../../src/utils/printStringList';
 import relativeId from '../../src/utils/relativeId';
 import { stderr } from '../logging';
 
@@ -11,20 +12,12 @@ export interface BatchWarnings {
 	readonly warningOccurred: boolean;
 }
 
-export default function batchWarnings() {
+export default function batchWarnings(): BatchWarnings {
 	let count = 0;
 	let deferredWarnings = new Map<keyof typeof deferredHandlers, RollupWarning[]>();
 	let warningOccurred = false;
 
 	return {
-		get count() {
-			return count;
-		},
-
-		get warningOccurred() {
-			return warningOccurred;
-		},
-
 		add: (warning: RollupWarning) => {
 			count += 1;
 			warningOccurred = true;
@@ -51,6 +44,10 @@ export default function batchWarnings() {
 			}
 		},
 
+		get count() {
+			return count;
+		},
+
 		flush: () => {
 			if (count === 0) return;
 
@@ -64,6 +61,10 @@ export default function batchWarnings() {
 
 			deferredWarnings = new Map();
 			count = 0;
+		},
+
+		get warningOccurred() {
+			return warningOccurred;
 		}
 	};
 }
@@ -71,24 +72,19 @@ export default function batchWarnings() {
 const immediateHandlers: {
 	[code: string]: (warning: RollupWarning) => void;
 } = {
-	UNKNOWN_OPTION: warning => {
-		title(`You have passed an unrecognized option`);
-		stderr(warning.message);
-	},
-
 	MISSING_NODE_BUILTINS: warning => {
 		title(`Missing shims for Node.js built-ins`);
 
-		const detail =
-			warning.modules!.length === 1
-				? `'${warning.modules![0]}'`
-				: `${warning
-						.modules!.slice(0, -1)
-						.map((name: string) => `'${name}'`)
-						.join(', ')} and '${warning.modules!.slice(-1)}'`;
 		stderr(
-			`Creating a browser bundle that depends on ${detail}. You might need to include https://github.com/ionic-team/rollup-plugin-node-polyfills`
+			`Creating a browser bundle that depends on ${printQuotedStringList(
+				warning.modules!
+			)}. You might need to include https://github.com/ionic-team/rollup-plugin-node-polyfills`
 		);
+	},
+
+	UNKNOWN_OPTION: warning => {
+		title(`You have passed an unrecognized option`);
+		stderr(warning.message);
 	}
 };
 
@@ -162,11 +158,11 @@ const deferredHandlers: {
 		title(`Conflicting re-exports`);
 		for (const warning of warnings) {
 			stderr(
-				`${bold(relativeId(warning.reexporter!))} re-exports '${
+				`"${bold(relativeId(warning.reexporter!))}" re-exports "${
 					warning.name
-				}' from both ${relativeId(warning.sources![0])} and ${relativeId(
+				}" from both "${relativeId(warning.sources![0])}" and "${relativeId(
 					warning.sources![1]
-				)} (will be ignored)`
+				)}" (will be ignored)`
 			);
 		}
 	},
@@ -207,16 +203,14 @@ const deferredHandlers: {
 		title(`Broken sourcemap`);
 		info('https://rollupjs.org/guide/en/#warning-sourcemap-is-likely-to-be-incorrect');
 
-		const plugins = Array.from(new Set(warnings.map(w => w.plugin).filter(Boolean)));
-		const detail =
-			plugins.length > 1
-				? ` (such as ${plugins
-						.slice(0, -1)
-						.map(p => `'${p}'`)
-						.join(', ')} and '${plugins.slice(-1)}')`
-				: ` (such as '${plugins[0]}')`;
-
-		stderr(`Plugins that transform code${detail} should generate accompanying sourcemaps`);
+		const plugins = [
+			...new Set(warnings.map(warning => warning.plugin).filter(Boolean))
+		] as string[];
+		stderr(
+			`Plugins that transform code (such as ${printQuotedStringList(
+				plugins
+			)}) should generate accompanying sourcemaps`
+		);
 	},
 
 	THIS_IS_UNDEFINED(warnings) {

@@ -1,4 +1,5 @@
-import { HasEffectsContext, InclusionContext } from '../ExecutionContext';
+import { InclusionContext } from '../ExecutionContext';
+import { UNKNOWN_PATH } from '../utils/PathTracker';
 import ArrowFunctionExpression from './ArrowFunctionExpression';
 import * as NodeType from './NodeType';
 import FunctionNode from './shared/FunctionNode';
@@ -7,12 +8,15 @@ import { ExpressionNode, IncludeChildren, Node, NodeBase } from './shared/Node';
 export default class AwaitExpression extends NodeBase {
 	argument!: ExpressionNode;
 	type!: NodeType.tAwaitExpression;
+	protected deoptimized = false;
 
-	hasEffects(context: HasEffectsContext) {
-		return !context.ignore.returnAwaitYield || this.argument.hasEffects(context);
+	hasEffects(): boolean {
+		if (!this.deoptimized) this.applyDeoptimizations();
+		return true;
 	}
 
-	include(context: InclusionContext, includeChildrenRecursively: IncludeChildren) {
+	include(context: InclusionContext, includeChildrenRecursively: IncludeChildren): void {
+		if (!this.deoptimized) this.applyDeoptimizations();
 		if (!this.included) {
 			this.included = true;
 			checkTopLevelAwait: if (!this.context.usesTopLevelAwait) {
@@ -25,5 +29,11 @@ export default class AwaitExpression extends NodeBase {
 			}
 		}
 		this.argument.include(context, includeChildrenRecursively);
+	}
+
+	protected applyDeoptimizations(): void {
+		this.deoptimized = true;
+		this.argument.deoptimizePath(UNKNOWN_PATH);
+		this.context.requestTreeshakingPass();
 	}
 }

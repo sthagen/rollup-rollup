@@ -5,8 +5,8 @@ import {
 	RenderedChunk,
 	SourceMapInput
 } from '../rollup/types';
-import { decodedSourcemap } from './decodedSourcemap';
 import { PluginDriver } from './PluginDriver';
+import { decodedSourcemap } from './decodedSourcemap';
 
 export default function renderChunk({
 	code,
@@ -23,7 +23,7 @@ export default function renderChunk({
 }): Promise<string> {
 	const renderChunkReducer = (
 		code: string,
-		result: { code: string; map?: SourceMapInput } | string | null,
+		result: { code: string; map?: SourceMapInput } | string | null | undefined,
 		plugin: Plugin
 	): string => {
 		if (result == null) return code;

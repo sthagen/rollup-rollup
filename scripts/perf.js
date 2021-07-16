@@ -1,9 +1,11 @@
-const path = require('path');
+/* global gc */
+
 const fs = require('fs');
-const rollup = require('../dist/rollup.js');
-const tc = require('turbocolor');
-const { loadPerfConfig, targetDir } = require('./load-perf-config');
+const path = require('path');
+const colorette = require('colorette');
 const prettyBytes = require('pretty-bytes');
+const rollup = require('../dist/rollup.js');
+const { loadPerfConfig, targetDir } = require('./load-perf-config');
 
 const initialDir = process.cwd();
 const perfFile = path.resolve(targetDir, 'rollup.perf.json');
@@ -25,10 +27,10 @@ if (!(numberOfDiscardedResults >= 0) || !(numberOfDiscardedResults < numberOfRun
 	process.exit(1);
 }
 console.info(
-	tc.bold(
-		`Calculating the average of ${tc.cyan(numberOfRunsToAverage)} runs discarding the ${tc.cyan(
-			numberOfDiscardedResults
-		)} largest results.\n`
+	colorette.bold(
+		`Calculating the average of ${colorette.cyan(
+			numberOfRunsToAverage
+		)} runs discarding the ${colorette.cyan(numberOfDiscardedResults)} largest results.\n`
 	) + 'Run "npm run perf <number of runs> <number of discarded results>" to change that.'
 );
 
@@ -48,13 +50,13 @@ function getAverage(accumulatedMeasurements, runs, discarded) {
 	const average = {};
 	Object.keys(accumulatedMeasurements).forEach(label => {
 		average[label] = {
-			time: getSingleAverage(
-				accumulatedMeasurements[label].map(timing => timing[0]),
+			memory: getSingleAverage(
+				accumulatedMeasurements[label].map(timing => timing[2]),
 				runs,
 				discarded
 			),
-			memory: getSingleAverage(
-				accumulatedMeasurements[label].map(timing => timing[2]),
+			time: getSingleAverage(
+				accumulatedMeasurements[label].map(timing => timing[0]),
 				runs,
 				discarded
 			)
@@ -109,9 +111,9 @@ function printMeasurements(average, existingAverage, filter = /.*/) {
 	printedLabels.forEach(label => {
 		let color = text => text;
 		if (label[0] === '#') {
-			color = tc.bold;
+			color = colorette.bold;
 			if (label[1] !== '#') {
-				color = tc.underline;
+				color = colorette.underline;
 			}
 		}
 		console.info(
@@ -137,7 +139,9 @@ function getExistingTimings() {
 	try {
 		const timings = JSON.parse(fs.readFileSync(perfFile, 'utf8'));
 		console.info(
-			tc.bold(`Comparing with ${tc.cyan(perfFile)}. Delete this file to create a new base line.`)
+			colorette.bold(
+				`Comparing with ${colorette.cyan(perfFile)}. Delete this file to create a new base line.`
+			)
 		);
 		return timings;
 	} catch (e) {
@@ -149,11 +153,15 @@ function persistTimings(timings) {
 	try {
 		fs.writeFileSync(perfFile, JSON.stringify(timings, null, 2), 'utf8');
 		console.info(
-			tc.bold(`Saving performance information to new reference file ${tc.cyan(perfFile)}.`)
+			colorette.bold(
+				`Saving performance information to new reference file ${colorette.cyan(perfFile)}.`
+			)
 		);
 	} catch (e) {
-		console.error(tc.bold(`Could not persist performance information in ${tc.cyan(perfFile)}.`));
-		system.exit(1);
+		console.error(
+			colorette.bold(`Could not persist performance information in ${colorette.cyan(perfFile)}.`)
+		);
+		process.exit(1);
 	}
 }
 
@@ -171,7 +179,7 @@ function getFormattedTime(currentTime, persistedTime = currentTime) {
 			0
 		)}ms, ${sign}${relativeDeviation.toFixed(1)}%)`;
 		if (relativeDeviation > RELATIVE_DEVIATION_FOR_COLORING) {
-			color = currentTime >= persistedTime ? tc.red : tc.green;
+			color = currentTime >= persistedTime ? colorette.red : colorette.green;
 		}
 	}
 	return color(formattedTime);
@@ -185,7 +193,7 @@ function getFormattedMemory(currentMemory, persistedMemory = currentMemory) {
 	const relativeDeviation = 100 * (absoluteDeviation / persistedMemory);
 	if (relativeDeviation > RELATIVE_DEVIATION_FOR_COLORING) {
 		formattedMemory += ` (${sign}${relativeDeviation.toFixed(0)}%)`;
-		color = currentMemory >= persistedMemory ? tc.red : tc.green;
+		color = currentMemory >= persistedMemory ? colorette.red : colorette.green;
 	}
 	return color(formattedMemory);
 }

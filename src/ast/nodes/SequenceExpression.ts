@@ -10,18 +10,33 @@ import { treeshakeNode } from '../../utils/treeshakeNode';
 import { CallOptions } from '../CallOptions';
 import { DeoptimizableEntity } from '../DeoptimizableEntity';
 import { HasEffectsContext, InclusionContext } from '../ExecutionContext';
+import { NodeEvent } from '../NodeEvents';
 import { ObjectPath, PathTracker } from '../utils/PathTracker';
-import { LiteralValueOrUnknown } from '../values';
-import CallExpression from './CallExpression';
+import ExpressionStatement from './ExpressionStatement';
 import * as NodeType from './NodeType';
+import { ExpressionEntity, LiteralValueOrUnknown } from './shared/Expression';
 import { ExpressionNode, IncludeChildren, NodeBase } from './shared/Node';
 
 export default class SequenceExpression extends NodeBase {
 	expressions!: ExpressionNode[];
 	type!: NodeType.tSequenceExpression;
 
-	deoptimizePath(path: ObjectPath) {
-		if (path.length > 0) this.expressions[this.expressions.length - 1].deoptimizePath(path);
+	deoptimizePath(path: ObjectPath): void {
+		this.expressions[this.expressions.length - 1].deoptimizePath(path);
+	}
+
+	deoptimizeThisOnEventAtPath(
+		event: NodeEvent,
+		path: ObjectPath,
+		thisParameter: ExpressionEntity,
+		recursionTracker: PathTracker
+	): void {
+		this.expressions[this.expressions.length - 1].deoptimizeThisOnEventAtPath(
+			event,
+			path,
+			thisParameter,
+			recursionTracker
+		);
 	}
 
 	getLiteralValueAtPath(
@@ -51,9 +66,9 @@ export default class SequenceExpression extends NodeBase {
 	}
 
 	hasEffectsWhenAssignedAtPath(path: ObjectPath, context: HasEffectsContext): boolean {
-		return (
-			path.length === 0 ||
-			this.expressions[this.expressions.length - 1].hasEffectsWhenAssignedAtPath(path, context)
+		return this.expressions[this.expressions.length - 1].hasEffectsWhenAssignedAtPath(
+			path,
+			context
 		);
 	}
 
@@ -69,23 +84,28 @@ export default class SequenceExpression extends NodeBase {
 		);
 	}
 
-	include(context: InclusionContext, includeChildrenRecursively: IncludeChildren) {
+	include(context: InclusionContext, includeChildrenRecursively: IncludeChildren): void {
 		this.included = true;
-		for (let i = 0; i < this.expressions.length - 1; i++) {
-			const node = this.expressions[i];
-			if (includeChildrenRecursively || node.shouldBeIncluded(context))
-				node.include(context, includeChildrenRecursively);
+		const lastExpression = this.expressions[this.expressions.length - 1];
+		for (const expression of this.expressions) {
+			if (
+				includeChildrenRecursively ||
+				(expression === lastExpression && !(this.parent instanceof ExpressionStatement)) ||
+				expression.shouldBeIncluded(context)
+			)
+				expression.include(context, includeChildrenRecursively);
 		}
-		this.expressions[this.expressions.length - 1].include(context, includeChildrenRecursively);
 	}
 
 	render(
 		code: MagicString,
 		options: RenderOptions,
 		{ renderedParentType, isCalleeOfRenderedParent, preventASI }: NodeRenderOptions = BLANK
-	) {
+	): void {
 		let includedNodes = 0;
-		for (const { node, start, end } of getCommaSeparatedNodesWithBoundaries(
+		let lastSeparatorPos: number | null = null;
+		const lastNode = this.expressions[this.expressions.length - 1];
+		for (const { node, separator, start, end } of getCommaSeparatedNodesWithBoundaries(
 			this.expressions,
 			code,
 			this.start,
@@ -96,19 +116,27 @@ export default class SequenceExpression extends NodeBase {
 				continue;
 			}
 			includedNodes++;
+			lastSeparatorPos = separator;
 			if (includedNodes === 1 && preventASI) {
 				removeLineBreaks(code, start, node.start);
 			}
-			if (node === this.expressions[this.expressions.length - 1] && includedNodes === 1) {
-				node.render(code, options, {
-					isCalleeOfRenderedParent: renderedParentType
-						? isCalleeOfRenderedParent
-						: (this.parent as CallExpression).callee === this,
-					renderedParentType: renderedParentType || this.parent.type
-				});
+			if (includedNodes === 1) {
+				if (node === lastNode) {
+					node.render(code, options, {
+						isCalleeOfRenderedParent,
+						renderedParentType: renderedParentType || this.parent.type
+					});
+				} else {
+					node.render(code, options, {
+						renderedSurroundingElement: renderedParentType || this.parent.type
+					});
+				}
 			} else {
 				node.render(code, options);
 			}
+		}
+		if (lastSeparatorPos) {
+			code.remove(lastSeparatorPos, this.end);
 		}
 	}
 }

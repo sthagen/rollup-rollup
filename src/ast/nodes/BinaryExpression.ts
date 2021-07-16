@@ -1,3 +1,6 @@
+import MagicString from 'magic-string';
+import { BLANK } from '../../utils/blank';
+import { NodeRenderOptions, RenderOptions } from '../../utils/renderHelpers';
 import { DeoptimizableEntity } from '../DeoptimizableEntity';
 import { HasEffectsContext } from '../ExecutionContext';
 import {
@@ -6,10 +9,10 @@ import {
 	PathTracker,
 	SHARED_RECURSION_TRACKER
 } from '../utils/PathTracker';
-import { LiteralValueOrUnknown, UnknownValue } from '../values';
 import ExpressionStatement from './ExpressionStatement';
 import { LiteralValue } from './Literal';
 import * as NodeType from './NodeType';
+import { LiteralValueOrUnknown, UnknownValue } from './shared/Expression';
 import { ExpressionNode, NodeBase } from './shared/Node';
 
 const binaryOperators: {
@@ -79,7 +82,18 @@ export default class BinaryExpression extends NodeBase implements DeoptimizableE
 		return super.hasEffects(context);
 	}
 
-	hasEffectsWhenAccessedAtPath(path: ObjectPath) {
+	hasEffectsWhenAccessedAtPath(path: ObjectPath): boolean {
 		return path.length > 1;
+	}
+
+	render(
+		code: MagicString,
+		options: RenderOptions,
+		{ renderedParentType, renderedSurroundingElement }: NodeRenderOptions = BLANK
+	): void {
+		this.left.render(code, options, {
+			renderedSurroundingElement: renderedParentType || renderedSurroundingElement
+		});
+		this.right.render(code, options);
 	}
 }

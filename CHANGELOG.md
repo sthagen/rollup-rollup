@@ -1,5 +1,279 @@
 # rollup changelog
 
+## 2.53.2
+*2021-07-15*
+
+### Bug Fixes
+* Identify additional TDZ situations in functions that are run more than once (#4177)
+* Fix a scoping issue when a variable inside a catch scope matches the scope parameter's name (#4178)
+
+### Pull Requests
+* [#4177](https://github.com/rollup/rollup/pull/4177): Fix additional let/var init bugs (@kzc)
+* [#4178](https://github.com/rollup/rollup/pull/4178): Correctly create outside variable when shadowed by catch parameter (@lukastaegert)
+
+## 2.53.1
+*2021-07-11*
+
+### Bug Fixes
+* Do not omit namespace reexports when `treeshake` is `false` (#4175)
+
+### Pull Requests
+* [#4175](https://github.com/rollup/rollup/pull/4175): Generate namespace objects when not tree-shaking (@lukastaegert)
+
+## 2.53.0
+*2021-07-09*
+
+### Features
+* Add `maxParallelFileReads` option to limit read operations with a default of 20 (#4170)
+
+### Pull Requests
+* [#4170](https://github.com/rollup/rollup/pull/4170): Limit parallel file reads to prevent "EMFILE: too many open files" error (@schummar)
+
+## 2.52.8
+*2021-07-07*
+
+### Bug Fixes
+* Automatically handle many use `var` before declaration and TDZ access scenarios correctly without the need for `treeshake.correctVarValueBeforeDeclaration` (#4148)
+
+### Pull Requests
+* [#4148](https://github.com/rollup/rollup/pull/4148): Fix var/const/let variable use before declaration (@kzc and @lukastaegert)
+
+## 2.52.7
+*2021-07-02*
+
+### Bug Fixes
+* Fix an issue where reassignments where not tracked through async function returns (#4163)
+
+### Pull Requests
+* [#4163](https://github.com/rollup/rollup/pull/4163): Deoptimize return values of async functions (@lukastaegert)
+
+## 2.52.6
+*2021-07-01*
+
+### Bug Fixes
+* Fix an issue where reassignments where not tracked through an await expression (#4162)
+
+### Pull Requests
+* [#4162](https://github.com/rollup/rollup/pull/4162): doptimize awaited expressions (@lukastaegert)
+
+## 2.52.5
+*2021-07-01*
+
+### Bug Fixes
+* Properly display parser errors not tied to a code location (#4160)
+
+### Pull Requests
+* [#4160](https://github.com/rollup/rollup/pull/4160): fix: max stack call error is caught on locate (@semoal)
+
+## 2.52.4
+*2021-06-30*
+
+### Bug Fixes
+* Fix an error when external namespaces are reexported across several files (#4159)
+
+### Pull Requests
+* [#4159](https://github.com/rollup/rollup/pull/4159): Properly handle double reexports from external namespaces (@lukastaegert)
+
+## 2.52.3
+*2021-06-25*
+
+### Bug Fixes
+* Fix an issue where code was wrongly removed when using vars in nested scopes (#4149)
+
+### Pull Requests
+* [#4149](https://github.com/rollup/rollup/pull/4149): Make sure the initializer of hoisted variables is deoptimized (@lukastaegert)
+
+## 2.52.2
+*2021-06-21*
+
+### Bug Fixes
+* Support falsy plugins in types (#4144)
+* Do not require return value in renderChunkHook type (#4144)
+
+### Pull Requests
+* [#4144](https://github.com/rollup/rollup/pull/4144): Use TypeScript config and improve some types (@lukastaegert)
+
+## 2.52.1
+*2021-06-17*
+
+### Bug Fixes
+* Fix a memory leak in watch mode (#4142)
+
+### Pull Requests
+* [#4142](https://github.com/rollup/rollup/pull/4142): Make array and object prototype singletons immutable for now (@lukastaegert)
+
+## 2.52.0
+*2021-06-16*
+
+### Features
+* Add `--configPlugin` CLI option to apply plugins to the config file for e.g. TypeScript configs (#3835)
+* Add "safest" and "smallest" presets to tree-shaking options for easier configuration (#4131)
+* Add `treeshake.correctVarValueBeforeDeclaration` option to deoptimize `var` declarations (#4139)
+
+### Pull Requests
+* [#3835](https://github.com/rollup/rollup/pull/3835): Add typescript config support (@TheRealSyler)
+* [#4131](https://github.com/rollup/rollup/pull/4131): Add presets to the tree-shaking options (@lukastaegert)
+* [#4139](https://github.com/rollup/rollup/pull/4139): Add option to deoptimize var declarations for tree-shaking (@lukastaegert)
+* [#4141](https://github.com/rollup/rollup/pull/4141): Update dependencies (@lukastaegert)
+
+## 2.51.2
+*2021-06-11*
+
+### Bug Fixes
+* Include modules imported from no-treeshake modules even if they would be empty (#4138)
+
+### Pull Requests
+* [#4138](https://github.com/rollup/rollup/pull/4138): Include all dependencies from modules with no-treeshake (@lukastaegert)
+
+## 2.51.1
+*2021-06-08*
+
+### Bug Fixes
+* Fix error when using `defineConfig` (#4134)
+
+### Pull Requests
+* [#4134](https://github.com/rollup/rollup/pull/4134): export `rollup.defineConfig` at runtime (@mshrtsr)
+
+## 2.51.0
+*2021-06-06*
+
+### Features
+* Add a helper for IntelliSense support in config files (#4127)
+
+### Bug Fixes
+* Improve performance when generating source maps (#4122)
+
+### Pull Requests
+* [#4122](https://github.com/rollup/rollup/pull/4122): User Map to optimize performance (@izevo)
+* [#4127](https://github.com/rollup/rollup/pull/4127): Export defineConfig defines the auxiliary function of the configuration (@rxliuli)
+
+## 2.50.6
+*2021-06-03*
+
+### Bug Fixes
+* Do not consider the object spread operator as side effect when `propertyReadSideEffects` are false (#4119)
+* Detect side effects when returning thenables from async arrow functions (#4120)
+
+### Pull Requests
+* [#4119](https://github.com/rollup/rollup/pull/4119): Respect propertyReadSideEffects in spread elements (@lukastaegert)
+* [#4120](https://github.com/rollup/rollup/pull/4120): Detect async arrow thenable side effects (@lukastaegert)
+
+## 2.50.5
+*2021-05-30*
+
+### Bug Fixes
+* Detect side effects when accessing thenables (#4115)
+
+### Pull Requests
+* [#4114](https://github.com/rollup/rollup/pull/4114): use `colorette` instead of `turbocolor` (@ryuever)
+* [#4115](https://github.com/rollup/rollup/pull/4115): Tracks side effects of thenables (@lukastaegert)
+
+## 2.50.4
+*2021-05-29*
+
+### Bug Fixes
+* Fix a situation where tree-shaking would stop including nodes prematurely (#4111)
+* Track mutations and accessor side effects when using `__proto__` in an object literal (#4112)
+* Check for getter effects when spreading an object (#4113)
+
+### Pull Requests
+* [#4111](https://github.com/rollup/rollup/pull/4111): Always request a new tree-shaking pass when deoptimizations of a node are first included (@lukastaegert)
+* [#4112](https://github.com/rollup/rollup/pull/4112): Actually set the prototype when using a __proto__ property (@lukastaegert)
+* [#4113](https://github.com/rollup/rollup/pull/4113): Track access side effects when using object spread operator (@lukastaegert)
+
+## 2.50.3
+*2021-05-28*
+
+### Bug Fixes
+* Wrap parentheses around leading elements in simplified sequence expressions if this would otherwise lead to invalid code (#4110)
+* Do not associate block soped variables in catch clauses with the clause parameter (#4108)
+* Do not associate hoisted variables in catch clauses with outside variables if they match the parameter (#4108)
+* Use correct "this" context for tagged template literal member expressions in simplified sequences (#4110)
+
+### Pull Requests
+* [#4108](https://github.com/rollup/rollup/pull/4108): Correctly handle catch declarations (@lukastaegert)
+* [#4110](https://github.com/rollup/rollup/pull/4110): Invalid sequence expression simplification (@lukastaegert)
+
+## 2.50.2
+*2021-05-27*
+
+### Bug Fixes
+* Avoid unnecessary side effects when using methods like `.filter` and `.map` (#4103)
+* Avoid crash when a module with moduleSideEffects no-treeshake imports a tree-shaken module (#4104)
+
+### Pull Requests
+* [#4103](https://github.com/rollup/rollup/pull/4103): Do not track side-effect-free array methods as side effects (@lukastaegert)
+* [#4104](https://github.com/rollup/rollup/pull/4104): Fix crash when using inlineDynamicImports with no-treeshake (@lukastaegert)
+
+## 2.50.1
+*2021-05-26*
+
+### Bug Fixes
+* Do not associate pure annotations in simplified expressions with wrong elements (#4095)
+* Prevent invalid code when simplified conditionals start with an IIFE function expression (#4099)
+
+### Pull Requests
+* [#4095](https://github.com/rollup/rollup/pull/4095): Correctly associate pure annotations and remove invalid ones (@lukastaegert)
+* [#4099](https://github.com/rollup/rollup/pull/4099): Wrap leading function expression iifes in conditionals (@lukastaegert)
+
+## 2.50.0
+*2021-05-25*
+
+### Features
+* Only include last elements of comma expressions if they are used or have side effects (#4087)
+
+### Bug Fixes
+* Prevent a crash that could occur when calling object methods (#4091)
+
+### Pull Requests
+* [#4085](https://github.com/rollup/rollup/pull/4085): Switch to ESLint (@lukastaegert)
+* [#4087](https://github.com/rollup/rollup/pull/4087): Drop unused last sequence element (@lukastaegert)
+* [#4091](https://github.com/rollup/rollup/pull/4091): Prevent crash for recursive "this" deoptimization (@lukastaegert)
+
+## 2.49.0
+*2021-05-23*
+
+### Features
+* Detect side-effect-free static class methods and properties (#4018)
+* Detect side-effect-free array elements (#4018)
+* Do not apply deoptimizations from dead code (#4018)
+
+### Bug Fixes
+* Handle side effect detection for getters and setters added in untracked code (#4018)
+* Track "this" mutations for methods, getters and setters (#4018)
+
+### Pull Requests
+* [#4018](https://github.com/rollup/rollup/pull/4018): Class method effects (@marijnh and @lukastaegert)
+
+## 2.48.0
+*2021-05-15*
+
+### Features
+* Add replacement to conditionally insert asset extensions in `entryFileNames` when preserving modules (#4077)
+
+### Bug Fixes
+* Fix crash when dynamically assigning to namespace members (#4070)
+* Do not associate pure annotations in front of a semi-colon or comma with succeeding code (#4068)
+
+### Pull Requests
+* [#4068](https://github.com/rollup/rollup/pull/4068): ignore invalid trailing pure annotations (@kzc)
+* [#4070](https://github.com/rollup/rollup/pull/4070): undefined `deoptimizePath` when the first element is empty string (@si3nloong)
+* [#4071](https://github.com/rollup/rollup/pull/4071): add node.js v16 support (@dnalborczyk)
+* [#4077](https://github.com/rollup/rollup/pull/4077): Add assetExtname replacement in entryFileNames (@BPScott)
+* [#4080](https://github.com/rollup/rollup/pull/4080): Added Rollup logo in README.md (@priyanshurav)
+* [#4081](https://github.com/rollup/rollup/pull/4081): fix comment regarding invalid annotation handling (@kzc)
+
+## 2.47.0
+*2021-05-04*
+
+### Features
+* Warn about ambiguous imports from combined external namespace reexports (#4064)
+* In case of combined namespace reexports, always prefer local exports over external namespaces (#4064)
+* Treat conflicting names in local namespace reexports as undefined (#4064)
+
+### Pull Requests
+* [#4064](https://github.com/rollup/rollup/pull/4064): Prefer locally defined exports and reexports over external namespaces (@lukastaegert)
+
 ## 2.46.0
 *2021-04-29*
 
@@ -1377,7 +1651,7 @@ This version is identical to 2.4.0
 * The file structure of Rollup's ESM builds has changed:
   - The main ESM entry point is now at `rollup/dist/es/rollup.js` instead of `rollup/dist/rollup.es.js`
   - The ESM browser build is at `rollup/dist/es/rollup.browser.js` instead of `rollup/dist/rollup.browser.es.js`
-  
+
   In general, the ESM builds now follow the same naming scheme as the CJS builds but are located in the `rollup/dist/es` subfolder instead of `rollup/dist` (#3391)
 * The "watch.chokidar" option no longer accepts a `boolean` value but only an object of parameters that is passed to the bundled Chokidar instance. Chokidar installations by the user will be ignored in favour of the bundled instance (#3331)
 * Modules that are completely tree-shaken will no longer be listed as part of any chunks in `generateBundle`
@@ -2810,7 +3084,7 @@ This version is identical to 2.4.0
   - globals -> output.globals
   - indent -> output.indent
   - interop -> output.interop
-  - intro -> output.intro 
+  - intro -> output.intro
   - load -> use plugin API
   - moduleName -> output.name
   - name -> output.name
@@ -2965,9 +3239,9 @@ none
 
 ### Bug Fixes
 * Fix TypeScript type for sourcemaps (#2507)
-* Fix order of external and inter-chunk imports to match the proper execution order (#2508) 
-* Do not tree-shake children of unknown nodes to e.g. properly handle do-expressions via acorn plugin (#2510) 
-* Prevent memory leak when using the bundle as cache (#2522) 
+* Fix order of external and inter-chunk imports to match the proper execution order (#2508)
+* Do not tree-shake children of unknown nodes to e.g. properly handle do-expressions via acorn plugin (#2510)
+* Prevent memory leak when using the bundle as cache (#2522)
 * Fix mis-placed semicolons for certain SystemJS exports (#2529)
 
 ### Pull Requests

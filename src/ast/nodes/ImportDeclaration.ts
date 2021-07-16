@@ -13,17 +13,18 @@ export default class ImportDeclaration extends NodeBase {
 	specifiers!: (ImportSpecifier | ImportDefaultSpecifier | ImportNamespaceSpecifier)[];
 	type!: NodeType.tImportDeclaration;
 
-	bind() {}
+	// Do not bind specifiers
+	bind(): void {}
 
-	hasEffects() {
+	hasEffects(): boolean {
 		return false;
 	}
 
-	initialise() {
+	initialise(): void {
 		this.context.addImport(this);
 	}
 
-	render(code: MagicString, _options: RenderOptions, nodeRenderOptions?: NodeRenderOptions) {
+	render(code: MagicString, _options: RenderOptions, nodeRenderOptions?: NodeRenderOptions): void {
 		code.remove(nodeRenderOptions!.start!, nodeRenderOptions!.end!);
 	}
 }

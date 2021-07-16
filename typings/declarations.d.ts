@@ -5,6 +5,15 @@ declare module 'help.md' {
 }
 
 // external libs
+declare module 'rollup-plugin-string' {
+	export const string: import('rollup').PluginImpl;
+}
+
+declare module 'rollup-plugin-typescript' {
+	const typescript: import('rollup').PluginImpl;
+	export default typescript;
+}
+
 declare module 'acorn-class-fields' {
 	const plugin: (BaseParser: typeof acorn.Parser) => typeof acorn.Parser;
 	export default plugin;
@@ -18,10 +27,6 @@ declare module 'acorn-private-methods' {
 declare module 'acorn-static-class-features' {
 	const plugin: (BaseParser: typeof acorn.Parser) => typeof acorn.Parser;
 	export default plugin;
-}
-
-declare module 'fsevents' {
-	export default {};
 }
 
 declare module 'acorn-walk' {
@@ -39,7 +44,7 @@ declare module 'is-reference' {
 	export default function is_reference(
 		node: NodeWithFieldDefinition,
 		parent: NodeWithFieldDefinition
-	): any;
+	): unknown;
 	export type Node =
 		| import('estree').Identifier
 		| import('estree').SimpleLiteral

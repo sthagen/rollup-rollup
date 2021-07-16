@@ -6,26 +6,35 @@ import { NodeRenderOptions, RenderOptions } from '../../utils/renderHelpers';
 import { CallOptions } from '../CallOptions';
 import { DeoptimizableEntity } from '../DeoptimizableEntity';
 import { HasEffectsContext, InclusionContext } from '../ExecutionContext';
+import { NodeEvent } from '../NodeEvents';
 import FunctionScope from '../scopes/FunctionScope';
 import { EMPTY_PATH, ObjectPath, PathTracker } from '../utils/PathTracker';
-import { LiteralValueOrUnknown } from '../values';
+import { UNDEFINED_EXPRESSION } from '../values';
 import GlobalVariable from '../variables/GlobalVariable';
 import LocalVariable from '../variables/LocalVariable';
 import Variable from '../variables/Variable';
 import * as NodeType from './NodeType';
-import { ExpressionEntity } from './shared/Expression';
+import SpreadElement from './SpreadElement';
+import { ExpressionEntity, LiteralValueOrUnknown, UNKNOWN_EXPRESSION } from './shared/Expression';
 import { ExpressionNode, NodeBase } from './shared/Node';
 import { PatternNode } from './shared/Pattern';
-import SpreadElement from './SpreadElement';
 
 export type IdentifierWithVariable = Identifier & { variable: Variable };
+
+const tdzVariableKinds = {
+	__proto__: null,
+	class: true,
+	const: true,
+	let: true,
+	var: true
+};
 
 export default class Identifier extends NodeBase implements PatternNode {
 	name!: string;
 	type!: NodeType.tIdentifier;
-
 	variable: Variable | null = null;
-	private bound = false;
+	protected deoptimized = false;
+	private isTDZAccess: boolean | null = null;
 
 	addExportedVariables(
 		variables: Variable[],
@@ -36,27 +45,23 @@ export default class Identifier extends NodeBase implements PatternNode {
 		}
 	}
 
-	bind() {
-		if (this.bound) return;
-		this.bound = true;
+	bind(): void {
 		if (this.variable === null && isReference(this, this.parent as any)) {
 			this.variable = this.scope.findVariable(this.name);
 			this.variable.addReference(this);
 		}
-		if (
-			this.variable !== null &&
-			this.variable instanceof LocalVariable &&
-			this.variable.additionalInitializers !== null
-		) {
-			this.variable.consolidateInitializers();
-		}
 	}
 
-	declare(kind: string, init: ExpressionEntity) {
+	declare(kind: string, init: ExpressionEntity): LocalVariable[] {
 		let variable: LocalVariable;
+		const { treeshake } = this.context.options;
 		switch (kind) {
 			case 'var':
 				variable = this.scope.addDeclaration(this, this.context, init, true);
+				if (treeshake && treeshake.correctVarValueBeforeDeclaration) {
+					// Necessary to make sure the init is deoptimized. We cannot call deoptimizePath here.
+					this.scope.addDeclaration(this, this.context, UNDEFINED_EXPRESSION, true);
+				}
 				break;
 			case 'function':
 				// in strict mode, functions are only hoisted within a scope but not across block scopes
@@ -75,15 +80,24 @@ export default class Identifier extends NodeBase implements PatternNode {
 				/* istanbul ignore next */
 				throw new Error(`Internal Error: Unexpected identifier kind ${kind}.`);
 		}
+		variable.kind = kind;
 		return [(this.variable = variable)];
 	}
 
-	deoptimizePath(path: ObjectPath) {
-		if (!this.bound) this.bind();
+	deoptimizePath(path: ObjectPath): void {
 		if (path.length === 0 && !this.scope.contains(this.name)) {
 			this.disallowImportReassignment();
 		}
 		this.variable!.deoptimizePath(path);
+	}
+
+	deoptimizeThisOnEventAtPath(
+		event: NodeEvent,
+		path: ObjectPath,
+		thisParameter: ExpressionEntity,
+		recursionTracker: PathTracker
+	): void {
+		this.variable!.deoptimizeThisOnEventAtPath(event, path, thisParameter, recursionTracker);
 	}
 
 	getLiteralValueAtPath(
@@ -91,20 +105,28 @@ export default class Identifier extends NodeBase implements PatternNode {
 		recursionTracker: PathTracker,
 		origin: DeoptimizableEntity
 	): LiteralValueOrUnknown {
-		if (!this.bound) this.bind();
-		return this.variable!.getLiteralValueAtPath(path, recursionTracker, origin);
+		return this.getVariableRespectingTDZ().getLiteralValueAtPath(path, recursionTracker, origin);
 	}
 
 	getReturnExpressionWhenCalledAtPath(
 		path: ObjectPath,
+		callOptions: CallOptions,
 		recursionTracker: PathTracker,
 		origin: DeoptimizableEntity
-	) {
-		if (!this.bound) this.bind();
-		return this.variable!.getReturnExpressionWhenCalledAtPath(path, recursionTracker, origin);
+	): ExpressionEntity {
+		return this.getVariableRespectingTDZ().getReturnExpressionWhenCalledAtPath(
+			path,
+			callOptions,
+			recursionTracker,
+			origin
+		);
 	}
 
 	hasEffects(): boolean {
+		if (!this.deoptimized) this.applyDeoptimizations();
+		if (this.isPossibleTDZ() && this.variable!.kind !== 'var') {
+			return true;
+		}
 		return (
 			(this.context.options.treeshake as NormalizedTreeshakingOptions).unknownGlobalSideEffects &&
 			this.variable instanceof GlobalVariable &&
@@ -113,22 +135,35 @@ export default class Identifier extends NodeBase implements PatternNode {
 	}
 
 	hasEffectsWhenAccessedAtPath(path: ObjectPath, context: HasEffectsContext): boolean {
-		return this.variable !== null && this.variable.hasEffectsWhenAccessedAtPath(path, context);
+		return (
+			this.variable !== null &&
+			this.getVariableRespectingTDZ().hasEffectsWhenAccessedAtPath(path, context)
+		);
 	}
 
 	hasEffectsWhenAssignedAtPath(path: ObjectPath, context: HasEffectsContext): boolean {
-		return !this.variable || this.variable.hasEffectsWhenAssignedAtPath(path, context);
+		return (
+			!this.variable ||
+			(path.length > 0
+				? this.getVariableRespectingTDZ()
+				: this.variable
+			).hasEffectsWhenAssignedAtPath(path, context)
+		);
 	}
 
 	hasEffectsWhenCalledAtPath(
 		path: ObjectPath,
 		callOptions: CallOptions,
 		context: HasEffectsContext
-	) {
-		return !this.variable || this.variable.hasEffectsWhenCalledAtPath(path, callOptions, context);
+	): boolean {
+		return (
+			!this.variable ||
+			this.getVariableRespectingTDZ().hasEffectsWhenCalledAtPath(path, callOptions, context)
+		);
 	}
 
-	include() {
+	include(): void {
+		if (!this.deoptimized) this.applyDeoptimizations();
 		if (!this.included) {
 			this.included = true;
 			if (this.variable !== null) {
@@ -138,20 +173,18 @@ export default class Identifier extends NodeBase implements PatternNode {
 	}
 
 	includeCallArguments(context: InclusionContext, args: (ExpressionNode | SpreadElement)[]): void {
-		this.variable!.includeCallArguments(context, args);
+		this.getVariableRespectingTDZ().includeCallArguments(context, args);
 	}
 
-	mayModifyThisWhenCalledAtPath(path: ObjectPath, recursionTracker: PathTracker) {
-		return this.variable
-			? this.variable.mayModifyThisWhenCalledAtPath(path, recursionTracker)
-			: true;
+	markDeclarationReached(): void {
+		this.variable!.initReached = true;
 	}
 
 	render(
 		code: MagicString,
 		_options: RenderOptions,
 		{ renderedParentType, isCalleeOfRenderedParent, isShorthandProperty }: NodeRenderOptions = BLANK
-	) {
+	): void {
 		if (this.variable) {
 			const name = this.variable.getName();
 
@@ -175,6 +208,14 @@ export default class Identifier extends NodeBase implements PatternNode {
 		}
 	}
 
+	protected applyDeoptimizations(): void {
+		this.deoptimized = true;
+		if (this.variable !== null && this.variable instanceof LocalVariable) {
+			this.variable.consolidateInitializers();
+			this.context.requestTreeshakingPass();
+		}
+	}
+
 	private disallowImportReassignment() {
 		return this.context.error(
 			{
@@ -184,4 +225,53 @@ export default class Identifier extends NodeBase implements PatternNode {
 			this.start
 		);
 	}
+
+	private getVariableRespectingTDZ(): ExpressionEntity {
+		if (this.isPossibleTDZ()) {
+			return UNKNOWN_EXPRESSION;
+		}
+		return this.variable!;
+	}
+
+	private isPossibleTDZ(): boolean {
+		// return cached value to avoid issues with the next tree-shaking pass
+		if (this.isTDZAccess !== null) return this.isTDZAccess;
+
+		if (
+			!(this.variable instanceof LocalVariable) ||
+			!this.variable.kind ||
+			!(this.variable.kind in tdzVariableKinds)
+		) {
+			return (this.isTDZAccess = false);
+		}
+
+		let decl_id;
+		if (
+			this.variable.declarations &&
+			this.variable.declarations.length === 1 &&
+			(decl_id = this.variable.declarations[0] as any) &&
+			this.start < decl_id.start &&
+			closestParentFunctionOrProgram(this) === closestParentFunctionOrProgram(decl_id)
+		) {
+			// a variable accessed before its declaration
+			// in the same function or at top level of module
+			return (this.isTDZAccess = true);
+		}
+
+		if (!this.variable.initReached) {
+			// Either a const/let TDZ violation or
+			// var use before declaration was encountered.
+			return (this.isTDZAccess = true);
+		}
+
+		return (this.isTDZAccess = false);
+	}
+}
+
+function closestParentFunctionOrProgram(node: any): any {
+	while (node && !/^Program|Function/.test(node.type)) {
+		node = node.parent;
+	}
+	// one of: ArrowFunctionExpression, FunctionDeclaration, FunctionExpression or Program
+	return node;
 }

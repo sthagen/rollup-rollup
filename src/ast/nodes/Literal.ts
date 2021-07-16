@@ -6,12 +6,15 @@ import {
 	getLiteralMembersForValue,
 	getMemberReturnExpressionWhenCalled,
 	hasMemberEffectWhenCalled,
-	LiteralValueOrUnknown,
-	MemberDescription,
-	UnknownValue,
-	UNKNOWN_EXPRESSION
+	MemberDescription
 } from '../values';
 import * as NodeType from './NodeType';
+import {
+	ExpressionEntity,
+	LiteralValueOrUnknown,
+	UNKNOWN_EXPRESSION,
+	UnknownValue
+} from './shared/Expression';
 import { GenericEsTreeNode, NodeBase } from './shared/Node';
 
 export type LiteralValue = string | boolean | null | number | RegExp | undefined;
@@ -25,6 +28,8 @@ export default class Literal<T extends LiteralValue = LiteralValue> extends Node
 	value!: T;
 
 	private members!: { [key: string]: MemberDescription };
+
+	deoptimizeThisOnEventAtPath(): void {}
 
 	getLiteralValueAtPath(path: ObjectPath): LiteralValueOrUnknown {
 		if (
@@ -40,19 +45,19 @@ export default class Literal<T extends LiteralValue = LiteralValue> extends Node
 		return this.value;
 	}
 
-	getReturnExpressionWhenCalledAtPath(path: ObjectPath) {
+	getReturnExpressionWhenCalledAtPath(path: ObjectPath): ExpressionEntity {
 		if (path.length !== 1) return UNKNOWN_EXPRESSION;
 		return getMemberReturnExpressionWhenCalled(this.members, path[0]);
 	}
 
-	hasEffectsWhenAccessedAtPath(path: ObjectPath) {
+	hasEffectsWhenAccessedAtPath(path: ObjectPath): boolean {
 		if (this.value === null) {
 			return path.length > 0;
 		}
 		return path.length > 1;
 	}
 
-	hasEffectsWhenAssignedAtPath(path: ObjectPath) {
+	hasEffectsWhenAssignedAtPath(path: ObjectPath): boolean {
 		return path.length > 0;
 	}
 
@@ -62,22 +67,22 @@ export default class Literal<T extends LiteralValue = LiteralValue> extends Node
 		context: HasEffectsContext
 	): boolean {
 		if (path.length === 1) {
-			return hasMemberEffectWhenCalled(this.members, path[0], this.included, callOptions, context);
+			return hasMemberEffectWhenCalled(this.members, path[0], callOptions, context);
 		}
 		return true;
 	}
 
-	initialise() {
+	initialise(): void {
 		this.members = getLiteralMembersForValue(this.value);
 	}
 
-	parseNode(esTreeNode: GenericEsTreeNode) {
+	parseNode(esTreeNode: GenericEsTreeNode): void {
 		this.value = esTreeNode.value;
 		this.regex = esTreeNode.regex;
 		super.parseNode(esTreeNode);
 	}
 
-	render(code: MagicString) {
+	render(code: MagicString): void {
 		if (typeof this.value === 'string') {
 			(code.indentExclusionRanges as [number, number][]).push([this.start + 1, this.end - 1]);
 		}

@@ -1,5 +1,6 @@
 import { ChunkDependencies } from '../../Chunk';
 import { RollupWarning } from '../../rollup/types';
+import { printQuotedStringList } from '../../utils/printStringList';
 
 const builtins = {
 	assert: true,
@@ -28,22 +29,16 @@ const builtins = {
 export default function warnOnBuiltins(
 	warn: (warning: RollupWarning) => void,
 	dependencies: ChunkDependencies
-) {
+): void {
 	const externalBuiltins = dependencies.map(({ id }) => id).filter(id => id in builtins);
 
 	if (!externalBuiltins.length) return;
 
-	const detail =
-		externalBuiltins.length === 1
-			? `module ('${externalBuiltins[0]}')`
-			: `modules (${externalBuiltins
-					.slice(0, -1)
-					.map(name => `'${name}'`)
-					.join(', ')} and '${externalBuiltins.slice(-1)}')`;
-
 	warn({
 		code: 'MISSING_NODE_BUILTINS',
-		message: `Creating a browser bundle that depends on Node.js built-in ${detail}. You might need to include https://github.com/ionic-team/rollup-plugin-node-polyfills`,
+		message: `Creating a browser bundle that depends on Node.js built-in modules (${printQuotedStringList(
+			externalBuiltins
+		)}). You might need to include https://github.com/ionic-team/rollup-plugin-node-polyfills`,
 		modules: externalBuiltins
 	});
 }

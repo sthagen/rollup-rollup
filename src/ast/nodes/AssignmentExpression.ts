@@ -33,7 +33,7 @@ export default class AssignmentExpression extends NodeBase {
 		| '**=';
 	right!: ExpressionNode;
 	type!: NodeType.tAssignmentExpression;
-	private deoptimized = false;
+	protected deoptimized = false;
 
 	hasEffects(context: HasEffectsContext): boolean {
 		if (!this.deoptimized) this.applyDeoptimizations();
@@ -69,7 +69,7 @@ export default class AssignmentExpression extends NodeBase {
 		code: MagicString,
 		options: RenderOptions,
 		{ preventASI, renderedParentType }: NodeRenderOptions = BLANK
-	) {
+	): void {
 		if (this.left.included) {
 			this.left.render(code, options);
 			this.right.render(code, options);
@@ -122,9 +122,10 @@ export default class AssignmentExpression extends NodeBase {
 		}
 	}
 
-	private applyDeoptimizations() {
+	protected applyDeoptimizations(): void {
 		this.deoptimized = true;
 		this.left.deoptimizePath(EMPTY_PATH);
 		this.right.deoptimizePath(UNKNOWN_PATH);
+		this.context.requestTreeshakingPass();
 	}
 }

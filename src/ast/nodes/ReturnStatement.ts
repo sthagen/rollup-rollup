@@ -5,17 +5,17 @@ import {
 	HasEffectsContext,
 	InclusionContext
 } from '../ExecutionContext';
-import { UNKNOWN_EXPRESSION } from '../values';
 import * as NodeType from './NodeType';
+import { UNKNOWN_EXPRESSION } from './shared/Expression';
 import { ExpressionNode, IncludeChildren, StatementBase } from './shared/Node';
 
 export default class ReturnStatement extends StatementBase {
 	argument!: ExpressionNode | null;
 	type!: NodeType.tReturnStatement;
 
-	hasEffects(context: HasEffectsContext) {
+	hasEffects(context: HasEffectsContext): boolean {
 		if (
-			!context.ignore.returnAwaitYield ||
+			!context.ignore.returnYield ||
 			(this.argument !== null && this.argument.hasEffects(context))
 		)
 			return true;
@@ -23,7 +23,7 @@ export default class ReturnStatement extends StatementBase {
 		return false;
 	}
 
-	include(context: InclusionContext, includeChildrenRecursively: IncludeChildren) {
+	include(context: InclusionContext, includeChildrenRecursively: IncludeChildren): void {
 		this.included = true;
 		if (this.argument) {
 			this.argument.include(context, includeChildrenRecursively);
@@ -31,11 +31,11 @@ export default class ReturnStatement extends StatementBase {
 		context.brokenFlow = BROKEN_FLOW_ERROR_RETURN_LABEL;
 	}
 
-	initialise() {
+	initialise(): void {
 		this.scope.addReturnExpression(this.argument || UNKNOWN_EXPRESSION);
 	}
 
-	render(code: MagicString, options: RenderOptions) {
+	render(code: MagicString, options: RenderOptions): void {
 		if (this.argument) {
 			this.argument.render(code, options, { preventASI: true });
 			if (this.argument.start === this.start + 6 /* 'return'.length */) {

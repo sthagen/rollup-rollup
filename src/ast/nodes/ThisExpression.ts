@@ -1,21 +1,40 @@
 import MagicString from 'magic-string';
 import { HasEffectsContext } from '../ExecutionContext';
+import { NodeEvent } from '../NodeEvents';
 import ModuleScope from '../scopes/ModuleScope';
-import { ObjectPath } from '../utils/PathTracker';
-import ThisVariable from '../variables/ThisVariable';
+import { ObjectPath, PathTracker } from '../utils/PathTracker';
+import Variable from '../variables/Variable';
 import * as NodeType from './NodeType';
-import FunctionNode from './shared/FunctionNode';
+import { ExpressionEntity } from './shared/Expression';
 import { NodeBase } from './shared/Node';
 
 export default class ThisExpression extends NodeBase {
 	type!: NodeType.tThisExpression;
 
-	variable!: ThisVariable;
+	variable!: Variable;
 	private alias!: string | null;
 
-	bind() {
-		super.bind();
-		this.variable = this.scope.findVariable('this') as ThisVariable;
+	bind(): void {
+		this.variable = this.scope.findVariable('this');
+	}
+
+	deoptimizePath(path: ObjectPath): void {
+		this.variable.deoptimizePath(path);
+	}
+
+	deoptimizeThisOnEventAtPath(
+		event: NodeEvent,
+		path: ObjectPath,
+		thisParameter: ExpressionEntity,
+		recursionTracker: PathTracker
+	): void {
+		this.variable.deoptimizeThisOnEventAtPath(
+			event,
+			path,
+			// We rewrite the parameter so that a ThisVariable can detect self-mutations
+			thisParameter === this ? this.variable : thisParameter,
+			recursionTracker
+		);
 	}
 
 	hasEffectsWhenAccessedAtPath(path: ObjectPath, context: HasEffectsContext): boolean {
@@ -26,7 +45,14 @@ export default class ThisExpression extends NodeBase {
 		return this.variable.hasEffectsWhenAssignedAtPath(path, context);
 	}
 
-	initialise() {
+	include(): void {
+		if (!this.included) {
+			this.included = true;
+			this.context.includeVariableInModule(this.variable);
+		}
+	}
+
+	initialise(): void {
 		this.alias =
 			this.scope.findLexicalBoundary() instanceof ModuleScope ? this.context.moduleContext : null;
 		if (this.alias === 'undefined') {
@@ -39,15 +65,9 @@ export default class ThisExpression extends NodeBase {
 				this.start
 			);
 		}
-		for (let parent = this.parent; parent instanceof NodeBase; parent = parent.parent) {
-			if (parent instanceof FunctionNode) {
-				parent.referencesThis = true;
-				break;
-			}
-		}
 	}
 
-	render(code: MagicString) {
+	render(code: MagicString): void {
 		if (this.alias !== null) {
 			code.overwrite(this.start, this.end, this.alias, {
 				contentOnly: false,

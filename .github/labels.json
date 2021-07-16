@@ -2,10 +2,6 @@
 	{ "name": "💩 template incomplete", "color": "#4E342E" },
 	{ "name": "💩 template removed", "color": "#4E342E" },
 
-	{ "name": "b¹ 🐞 code-splitting", "color": "#F44336" },
-	{ "name": "b² 🐞 scope-hoisting", "color": "#F44336" },
-	{ "name": "b³ 🐞 tree-shaking", "color": "#F44336" },
-
 	{ "name": "c¹ ⋅ discussion", "color": "#1976D2" },
 	{ "name": "c² ⋅ feedback wanted", "color": "#F9A825" },
 	{ "name": "c³ ⋅ PR welcome", "color": "#1B5E20" },
@@ -39,6 +35,8 @@
 	{ "name": "t⁴ ⋅ regression", "color": "#0052cc" },
 	{ "name": "t⁵ ⋅ todo", "color": "#311B92" },
 	{ "name": "t⁶ ⋅ waiting on upstream", "color": "#0D47A1" },
+	{ "name": "t⁷ ⋅ modification", "color": "#03a9f4" },
+	{ "name": "t⁸ ⋅ triage", "color": "#CFD8DC" },
 
 	{ "name": "v¹ ⋅ major", "color": "#CDDC39" },
 	{ "name": "v² ⋅ minor", "color": "#FF9800" },
@@ -50,5 +48,6 @@
 	{ "name": "x⁴ ⋅ hold", "color": "#CFD8DC" },
 	{ "name": "x⁵ ⋅ in progress", "color": "#4CAF50" },
 	{ "name": "x⁶ ⋅ invalid", "color": "#CFD8DC" },
-	{ "name": "x⁷ ⋅ wontfix", "color": "#CFD8DC" }
+	{ "name": "x⁷ ⋅ wontfix", "color": "#CFD8DC" },
+	{ "name": "x⁸ ⚙️ build repl artefacts", "color": "#4CAF50" }
 ]

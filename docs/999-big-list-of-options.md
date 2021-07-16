@@ -336,6 +336,13 @@ For this case, choosing `"ifRelativeSource"` will check if the original import w
 
 Note that when a relative path is directly marked as "external" using the [`external`](guide/en/#external) option, then it will be the same relative path in the output. When it is resolved first via a plugin or Rollup core and then marked as external, the above logic will apply.
 
+#### maxParallelFileReads
+Type: `number`<br>
+CLI: `--maxParallelFileReads <number>`<br>
+Default: 20
+
+Limits the number of files rollup will open in parallel when reading modules. Without a limit or with a high enough value, builds can fail with an "EMFILE: too many open files". This dependes on how many open file handles the os allows. 
+
 #### onwarn
 Type: `(warning: RollupWarning, defaultHandler: (warning: string | RollupWarning) => void) => void;`
 
@@ -446,6 +453,7 @@ This pattern will also be used when setting the [`output.preserveModules`](guide
 * `[name]`: The file name (without extension) of the file.
 * `[ext]`: The extension of the file.
 * `[extname]`: The extension of the file, prefixed by `.` if it is not empty.
+* `[assetExtname]`: The extension of the file, prefixed by `.` if it is not empty and it is not one of `js`, `jsx`, `ts` or `tsx`.
 
 #### output.extend
 Type: `boolean`<br>
@@ -1378,11 +1386,22 @@ Default: `false`
 If this option is provided, bundling will not fail if bindings are imported from a file that does not define these bindings. Instead, new variables will be created for these bindings with the value `undefined`.
 
 #### treeshake
-Type: `boolean | { annotations?: boolean, moduleSideEffects?: ModuleSideEffectsOption, propertyReadSideEffects?: boolean | 'always', tryCatchDeoptimization?: boolean, unknownGlobalSideEffects?: boolean }`<br>
+Type: `boolean | "smallest" | "safest" | "recommended" | { annotations?: boolean, correctVarValueBeforeDeclaration?: boolean, moduleSideEffects?: ModuleSideEffectsOption, preset?: "smallest" | "safest" | "recommended", propertyReadSideEffects?: boolean | 'always', tryCatchDeoptimization?: boolean, unknownGlobalSideEffects?: boolean }`<br>
 CLI: `--treeshake`/`--no-treeshake`<br>
 Default: `true`
 
-Whether to apply tree-shaking and to fine-tune the tree-shaking process. Setting this option to `false` will produce bigger bundles but may improve build performance. If you discover a bug caused by the tree-shaking algorithm, please file an issue!
+Whether to apply tree-shaking and to fine-tune the tree-shaking process. Setting this option to `false` will produce bigger bundles but may improve build performance. You may also choose one of three presets that will automatically be updated if new options are added:
+
+* `"smallest"` will choose option values for you to minimize output size as much as possible. This should work for most code bases as long as you do not rely on certain patterns, which are currently:
+  * getters with side effects will only be retained if the return value is used (`treeshake.propertyReadSideEffects: false`)
+  * code from imported modules will only be retained if at least one exported value is used (`treeshake.moduleSideEffects: false`)
+  * you should not bundle polyfills that rely on detecting broken builtins (`treeshake.tryCatchDeoptimization: false`)
+  * some semantic issues may be swallowed (`treeshake.unknownGlobalSideEffects: false`, `treeshake.correctVarValueBeforeDeclaration: false`)
+* `"recommended"` should work well for most usage patterns. Some semantic issues may be swallowed, though (`treeshake.unknownGlobalSideEffects: false`, `treeshake.correctVarValueBeforeDeclaration: false`)
+* `"safest"` tries to be as spec compliant as possible while still providing some basic tree-shaking capabilities.
+* `true` is equivalent to not specifying the option and will always choose the default value (see below).
+
+If you discover a bug caused by the tree-shaking algorithm, please file an issue!
 Setting this option to an object implies tree-shaking is enabled and grants the following additional options:
 
 **treeshake.annotations**<br>
@@ -1402,6 +1421,37 @@ class Impure {
 }
 
 /*@__PURE__*/new Impure();
+```
+
+**treeshake.correctVarValueBeforeDeclaration**<br>
+Type: `boolean`<br>
+CLI: `--treeshake.correctVarValueBeforeDeclaration`/`--no-treeshake.correctVarValueBeforeDeclaration`<br>
+Default: `false`
+
+In some edge cases if a variable is accessed before its declaration assignment and is not reassigned, then Rollup may incorrectly assume that variable is constant throughout the program, as in the example below. This is not true if the variable is declared with `var`, however, as those variables can be accessed before their declaration where they will evaluate to `undefined`.
+Choosing `true` will make sure Rollup does not make any assumptions about the value of variables declared with `var`. Note though that this can have a noticeable negative impact on tree-shaking results.
+
+```js
+// everything will be tree-shaken unless treeshake.correctVarValueBeforeDeclaration === true
+let logBeforeDeclaration = false;
+
+function logIfEnabled() {
+  if (logBeforeDeclaration) {
+    log();
+  }
+
+  var value = true;
+
+  function log() {
+    if (!value) {
+      console.log('should be retained, value is undefined');
+    }
+  }
+};
+
+logIfEnabled(); // could be removed
+logBeforeDeclaration = true;
+logIfEnabled(); // needs to be retained as it displays a log
 ```
 
 **treeshake.moduleSideEffects**<br>
@@ -1490,6 +1540,22 @@ console.log(foo);
 ```
 
 Note that despite the name, this option does not "add" side effects to modules that do not have side effects. If it is important that e.g. an empty module is "included" in the bundle because you need this for dependency tracking, the plugin interface allows you to designate modules as being excluded from tree-shaking via the [`resolveId`](guide/en/#resolveid), [`load`](guide/en/#load) or [`transform`](guide/en/#transform) hook.
+
+**treeshake.preset**<br>
+Type: `"smallest" | "safest" | "recommended"`<br>
+CLI: `--treeshake <value>`<br>
+
+Allows choosing one of the presets listed above while overriding some of the options.
+
+```js
+export default {
+  treeshake: {
+    preset: 'smallest',
+    propertyReadSideEffects: true
+  }
+  // ...
+}
+```
 
 **treeshake.propertyReadSideEffects**<br>
 Type: `boolean | 'always'`<br>

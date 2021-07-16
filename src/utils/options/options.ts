@@ -1,4 +1,4 @@
-import { WarningHandler } from '../../rollup/types';
+import { InputOptions, NormalizedInputOptions, WarningHandler } from '../../rollup/types';
 
 export interface GenericConfigObject {
 	[key: string]: unknown;
@@ -11,7 +11,7 @@ export function warnUnknownOptions(
 	validOptions: string[],
 	optionType: string,
 	warn: WarningHandler,
-	ignoredKeys: RegExp = /$./
+	ignoredKeys = /$./
 ): void {
 	const validOptionSet = new Set(validOptions);
 	const unknownOptions = Object.keys(passedOptions).filter(
@@ -28,3 +28,36 @@ export function warnUnknownOptions(
 		});
 	}
 }
+
+type ObjectValue<Base> = Base extends Record<string, any> ? Base : never;
+
+export const treeshakePresets: {
+	[key in NonNullable<
+		ObjectValue<InputOptions['treeshake']>['preset']
+	>]: NormalizedInputOptions['treeshake'];
+} = {
+	recommended: {
+		annotations: true,
+		correctVarValueBeforeDeclaration: false,
+		moduleSideEffects: () => true,
+		propertyReadSideEffects: true,
+		tryCatchDeoptimization: true,
+		unknownGlobalSideEffects: false
+	},
+	safest: {
+		annotations: true,
+		correctVarValueBeforeDeclaration: true,
+		moduleSideEffects: () => true,
+		propertyReadSideEffects: true,
+		tryCatchDeoptimization: true,
+		unknownGlobalSideEffects: true
+	},
+	smallest: {
+		annotations: true,
+		correctVarValueBeforeDeclaration: false,
+		moduleSideEffects: () => false,
+		propertyReadSideEffects: false,
+		tryCatchDeoptimization: false,
+		unknownGlobalSideEffects: false
+	}
+};

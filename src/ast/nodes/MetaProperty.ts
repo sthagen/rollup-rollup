@@ -1,8 +1,8 @@
 import MagicString from 'magic-string';
 import { InternalModuleFormat } from '../../rollup/types';
+import { PluginDriver } from '../../utils/PluginDriver';
 import { warnDeprecation } from '../../utils/error';
 import { dirname, normalize, relative } from '../../utils/path';
-import { PluginDriver } from '../../utils/PluginDriver';
 import ChildScope from '../scopes/ChildScope';
 import { ObjectPathKey } from '../utils/PathTracker';
 import Identifier from './Identifier';
@@ -24,14 +24,16 @@ export default class MetaProperty extends NodeBase {
 	addAccessedGlobals(
 		format: InternalModuleFormat,
 		accessedGlobalsByScope: Map<ChildScope, Set<string>>
-	) {
+	): void {
 		const metaProperty = this.metaProperty;
-		const accessedGlobals = (metaProperty &&
-		(metaProperty.startsWith(FILE_PREFIX) ||
-			metaProperty.startsWith(ASSET_PREFIX) ||
-			metaProperty.startsWith(CHUNK_PREFIX))
-			? accessedFileUrlGlobals
-			: accessedMetaUrlGlobals)[format];
+		const accessedGlobals = (
+			metaProperty &&
+			(metaProperty.startsWith(FILE_PREFIX) ||
+				metaProperty.startsWith(ASSET_PREFIX) ||
+				metaProperty.startsWith(CHUNK_PREFIX))
+				? accessedFileUrlGlobals
+				: accessedMetaUrlGlobals
+		)[format];
 		if (accessedGlobals.length > 0) {
 			this.scope.addAccessedGlobals(accessedGlobals, accessedGlobalsByScope);
 		}
@@ -53,7 +55,7 @@ export default class MetaProperty extends NodeBase {
 		return path.length > 1;
 	}
 
-	include() {
+	include(): void {
 		if (!this.included) {
 			this.included = true;
 			if (this.meta.name === 'import') {
@@ -188,13 +190,15 @@ const getRelativeUrlFromDocument = (relativePath: string) =>
 		`'${relativePath}', document.currentScript && document.currentScript.src || document.baseURI`
 	);
 
-const getGenericImportMetaMechanism = (getUrl: (chunkId: string) => string) => (
-	prop: string | null,
-	chunkId: string
-) => {
-	const urlMechanism = getUrl(chunkId);
-	return prop === null ? `({ url: ${urlMechanism} })` : prop === 'url' ? urlMechanism : 'undefined';
-};
+const getGenericImportMetaMechanism =
+	(getUrl: (chunkId: string) => string) => (prop: string | null, chunkId: string) => {
+		const urlMechanism = getUrl(chunkId);
+		return prop === null
+			? `({ url: ${urlMechanism} })`
+			: prop === 'url'
+			? urlMechanism
+			: 'undefined';
+	};
 
 const getUrlFromDocument = (chunkId: string) =>
 	`(document.currentScript && document.currentScript.src || new URL('${chunkId}', document.baseURI).href)`;
