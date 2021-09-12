@@ -9,7 +9,6 @@ import { HasEffectsContext, InclusionContext } from '../ExecutionContext';
 import { NodeEvent } from '../NodeEvents';
 import FunctionScope from '../scopes/FunctionScope';
 import { EMPTY_PATH, ObjectPath, PathTracker } from '../utils/PathTracker';
-import { UNDEFINED_EXPRESSION } from '../values';
 import GlobalVariable from '../variables/GlobalVariable';
 import LocalVariable from '../variables/LocalVariable';
 import Variable from '../variables/Variable';
@@ -60,7 +59,7 @@ export default class Identifier extends NodeBase implements PatternNode {
 				variable = this.scope.addDeclaration(this, this.context, init, true);
 				if (treeshake && treeshake.correctVarValueBeforeDeclaration) {
 					// Necessary to make sure the init is deoptimized. We cannot call deoptimizePath here.
-					this.scope.addDeclaration(this, this.context, UNDEFINED_EXPRESSION, true);
+					variable.markInitializersForDeoptimization();
 				}
 				break;
 			case 'function':
@@ -176,6 +175,40 @@ export default class Identifier extends NodeBase implements PatternNode {
 		this.getVariableRespectingTDZ().includeCallArguments(context, args);
 	}
 
+	isPossibleTDZ(): boolean {
+		// return cached value to avoid issues with the next tree-shaking pass
+		if (this.isTDZAccess !== null) return this.isTDZAccess;
+
+		if (
+			!(this.variable instanceof LocalVariable) ||
+			!this.variable.kind ||
+			!(this.variable.kind in tdzVariableKinds)
+		) {
+			return (this.isTDZAccess = false);
+		}
+
+		let decl_id;
+		if (
+			this.variable.declarations &&
+			this.variable.declarations.length === 1 &&
+			(decl_id = this.variable.declarations[0] as any) &&
+			this.start < decl_id.start &&
+			closestParentFunctionOrProgram(this) === closestParentFunctionOrProgram(decl_id)
+		) {
+			// a variable accessed before its declaration
+			// in the same function or at top level of module
+			return (this.isTDZAccess = true);
+		}
+
+		if (!this.variable.initReached) {
+			// Either a const/let TDZ violation or
+			// var use before declaration was encountered.
+			return (this.isTDZAccess = true);
+		}
+
+		return (this.isTDZAccess = false);
+	}
+
 	markDeclarationReached(): void {
 		this.variable!.initReached = true;
 	}
@@ -231,40 +264,6 @@ export default class Identifier extends NodeBase implements PatternNode {
 			return UNKNOWN_EXPRESSION;
 		}
 		return this.variable!;
-	}
-
-	private isPossibleTDZ(): boolean {
-		// return cached value to avoid issues with the next tree-shaking pass
-		if (this.isTDZAccess !== null) return this.isTDZAccess;
-
-		if (
-			!(this.variable instanceof LocalVariable) ||
-			!this.variable.kind ||
-			!(this.variable.kind in tdzVariableKinds)
-		) {
-			return (this.isTDZAccess = false);
-		}
-
-		let decl_id;
-		if (
-			this.variable.declarations &&
-			this.variable.declarations.length === 1 &&
-			(decl_id = this.variable.declarations[0] as any) &&
-			this.start < decl_id.start &&
-			closestParentFunctionOrProgram(this) === closestParentFunctionOrProgram(decl_id)
-		) {
-			// a variable accessed before its declaration
-			// in the same function or at top level of module
-			return (this.isTDZAccess = true);
-		}
-
-		if (!this.variable.initReached) {
-			// Either a const/let TDZ violation or
-			// var use before declaration was encountered.
-			return (this.isTDZAccess = true);
-		}
-
-		return (this.isTDZAccess = false);
 	}
 }
 

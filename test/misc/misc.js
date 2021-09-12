@@ -49,7 +49,7 @@ describe('misc', () => {
 				assert.equal(relevantWarnings.length, 1);
 				assert.equal(
 					relevantWarnings[0].message,
-					`Creating a browser bundle that depends on Node.js built-in modules ("util"). You might need to include https://github.com/ionic-team/rollup-plugin-node-polyfills`
+					`Creating a browser bundle that depends on Node.js built-in modules ("util"). You might need to include https://github.com/snowpackjs/rollup-plugin-polyfill-node`
 				);
 			});
 	});
@@ -175,7 +175,10 @@ describe('misc', () => {
 			.rollup(options)
 			.then(bundle => bundle.generate(options))
 			.then(output =>
-				assert.strictEqual(output.output[0].code, 'var input = 42;\n\nexport default input;\n')
+				assert.strictEqual(
+					output.output[0].code,
+					'var input = 42;\n\nexport { input as default };\n'
+				)
 			);
 	});
 

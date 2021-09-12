@@ -78,7 +78,7 @@ const immediateHandlers: {
 		stderr(
 			`Creating a browser bundle that depends on ${printQuotedStringList(
 				warning.modules!
-			)}. You might need to include https://github.com/ionic-team/rollup-plugin-node-polyfills`
+			)}. You might need to include https://github.com/snowpackjs/rollup-plugin-polyfill-node`
 		);
 	},
 
@@ -237,7 +237,13 @@ const deferredHandlers: {
 	UNUSED_EXTERNAL_IMPORT(warnings) {
 		title('Unused external imports');
 		for (const warning of warnings) {
-			stderr(`${warning.names} imported from external module '${warning.source}' but never used`);
+			stderr(
+				warning.names +
+					' imported from external module "' +
+					warning.source +
+					'" but never used in ' +
+					printQuotedStringList((warning.sources as string[]).map(id => relativeId(id)))
+			);
 		}
 	}
 };

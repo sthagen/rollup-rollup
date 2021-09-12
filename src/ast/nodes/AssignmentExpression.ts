@@ -7,11 +7,17 @@ import {
 	removeLineBreaks,
 	RenderOptions
 } from '../../utils/renderHelpers';
-import { getSystemExportFunctionLeft } from '../../utils/systemJsRendering';
+import {
+	renderSystemExportExpression,
+	renderSystemExportFunction,
+	renderSystemExportSequenceAfterExpression
+} from '../../utils/systemJsRendering';
 import { createHasEffectsContext, HasEffectsContext, InclusionContext } from '../ExecutionContext';
 import { EMPTY_PATH, ObjectPath, UNKNOWN_PATH } from '../utils/PathTracker';
 import Variable from '../variables/Variable';
+import Identifier from './Identifier';
 import * as NodeType from './NodeType';
+import ObjectPattern from './ObjectPattern';
 import { ExpressionNode, IncludeChildren, NodeBase } from './shared/Node';
 import { PatternNode } from './shared/Pattern';
 
@@ -68,7 +74,7 @@ export default class AssignmentExpression extends NodeBase {
 	render(
 		code: MagicString,
 		options: RenderOptions,
-		{ preventASI, renderedParentType }: NodeRenderOptions = BLANK
+		{ preventASI, renderedParentType, renderedSurroundingElement }: NodeRenderOptions = BLANK
 	): void {
 		if (this.left.included) {
 			this.left.render(code, options);
@@ -83,42 +89,53 @@ export default class AssignmentExpression extends NodeBase {
 				removeLineBreaks(code, inclusionStart, this.right.start);
 			}
 			this.right.render(code, options, {
-				renderedParentType: renderedParentType || this.parent.type
+				renderedParentType: renderedParentType || this.parent.type,
+				renderedSurroundingElement: renderedSurroundingElement || this.parent.type
 			});
 		}
 		if (options.format === 'system') {
-			const exportNames =
-				this.left.variable && options.exportNamesByVariable.get(this.left.variable);
-			if (this.left.type === 'Identifier' && exportNames) {
-				const _ = options.compact ? '' : ' ';
-				const operatorPos = findFirstOccurrenceOutsideComment(
-					code.original,
-					this.operator,
-					this.left.end
-				);
-				const operation =
-					this.operator.length > 1 ? `${exportNames[0]}${_}${this.operator.slice(0, -1)}${_}` : '';
-				code.overwrite(
-					operatorPos,
-					findNonWhiteSpace(code.original, operatorPos + this.operator.length),
-					`=${_}${
-						exportNames.length === 1
-							? `exports('${exportNames[0]}',${_}`
-							: getSystemExportFunctionLeft([this.left.variable!], false, options)
-					}${operation}`
-				);
-				code.appendLeft(this.right.end, ')');
+			if (this.left instanceof Identifier) {
+				const variable = this.left.variable!;
+				const exportNames = options.exportNamesByVariable.get(variable);
+				if (exportNames) {
+					if (exportNames.length === 1) {
+						renderSystemExportExpression(variable, this.start, this.end, code, options);
+					} else {
+						renderSystemExportSequenceAfterExpression(
+							variable,
+							this.start,
+							this.end,
+							this.parent.type !== NodeType.ExpressionStatement,
+							code,
+							options
+						);
+					}
+					return;
+				}
 			} else {
 				const systemPatternExports: Variable[] = [];
 				this.left.addExportedVariables(systemPatternExports, options.exportNamesByVariable);
 				if (systemPatternExports.length > 0) {
-					code.prependRight(
+					renderSystemExportFunction(
+						systemPatternExports,
 						this.start,
-						`(${getSystemExportFunctionLeft(systemPatternExports, true, options)}`
+						this.end,
+						renderedSurroundingElement === NodeType.ExpressionStatement,
+						code,
+						options
 					);
-					code.appendLeft(this.end, '))');
+					return;
 				}
 			}
+		}
+		if (
+			this.left.included &&
+			this.left instanceof ObjectPattern &&
+			(renderedSurroundingElement === NodeType.ExpressionStatement ||
+				renderedSurroundingElement === NodeType.ArrowFunctionExpression)
+		) {
+			code.appendRight(this.start, '(');
+			code.prependLeft(this.end, ')');
 		}
 	}
 
