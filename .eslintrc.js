@@ -19,7 +19,8 @@ module.exports = {
 		'!/test/*.js',
 		'!/test/*/*.js',
 		'/test/node_modules/*.*',
-		'!/test/*/samples/**/_config.js'
+		'!/test/*/samples/**/_config.js',
+		'!/test/*/samples/**/rollup.config.js'
 	],
 	overrides: [
 		{
@@ -71,7 +72,13 @@ module.exports = {
 		'@typescript-eslint/no-non-null-assertion': 'off',
 		'@typescript-eslint/no-unused-vars': 'off',
 		'dot-notation': 'error',
-		'import/no-unresolved': ['error', { ignore: ['package.json', 'is-reference', 'help.md'] }],
+		'import/no-unresolved': [
+			'error',
+			{
+				// 'fsevents' is ony available on macOS, and not installed on linux/windows
+				ignore: ['fsevents', 'help.md', 'is-reference', 'package.json', 'types']
+			}
+		],
 		'import/order': ['error', { alphabetize: { order: 'asc' } }],
 		'no-constant-condition': ['error', { checkLoops: false }],
 		'no-prototype-builtins': 'off',

@@ -1,7 +1,8 @@
-import * as path from 'path';
+import { resolve } from 'path';
+import process from 'process';
 import { createFilter } from '@rollup/pluginutils';
 import { rollupInternal } from '../rollup/rollup';
-import {
+import type {
 	ChangeEvent,
 	MergedRollupOptions,
 	OutputOptions,
@@ -11,7 +12,7 @@ import {
 	WatcherOptions
 } from '../rollup/types';
 import { mergeOptions } from '../utils/options/mergeOptions';
-import { GenericConfigObject } from '../utils/options/options';
+import type { GenericConfigObject } from '../utils/options/options';
 import { FileWatcher } from './fileWatcher';
 
 const eventsRewrites: Record<ChangeEvent, Record<ChangeEvent, ChangeEvent | 'buggy' | null>> = {
@@ -33,16 +34,16 @@ const eventsRewrites: Record<ChangeEvent, Record<ChangeEvent, ChangeEvent | 'bug
 };
 
 export class Watcher {
-	emitter: RollupWatcher;
+	readonly emitter: RollupWatcher;
 
 	private buildDelay = 0;
 	private buildTimeout: NodeJS.Timer | null = null;
-	private invalidatedIds = new Map<string, ChangeEvent>();
+	private readonly invalidatedIds = new Map<string, ChangeEvent>();
 	private rerun = false;
 	private running = true;
-	private tasks: Task[];
+	private readonly tasks: Task[];
 
-	constructor(configs: GenericConfigObject[], emitter: RollupWatcher) {
+	constructor(configs: readonly GenericConfigObject[], emitter: RollupWatcher) {
 		this.emitter = emitter;
 		emitter.close = this.close.bind(this);
 		this.tasks = configs.map(config => new Task(this, config));
@@ -56,12 +57,12 @@ export class Watcher {
 		process.nextTick(() => this.run());
 	}
 
-	close(): void {
+	async close(): Promise<void> {
 		if (this.buildTimeout) clearTimeout(this.buildTimeout);
 		for (const task of this.tasks) {
 			task.close();
 		}
-		this.emitter.emit('close');
+		await this.emitter.emitAndAwait('close');
 		this.emitter.removeAllListeners();
 	}
 
@@ -86,18 +87,33 @@ export class Watcher {
 
 		if (this.buildTimeout) clearTimeout(this.buildTimeout);
 
-		this.buildTimeout = setTimeout(() => {
+		this.buildTimeout = setTimeout(async () => {
 			this.buildTimeout = null;
-			for (const [id, event] of this.invalidatedIds.entries()) {
-				this.emitter.emit('change', id, { event });
+			try {
+				await Promise.all(
+					[...this.invalidatedIds].map(([id, event]) =>
+						this.emitter.emitAndAwait('change', id, { event })
+					)
+				);
+				this.invalidatedIds.clear();
+				this.emitter.emit('restart');
+				this.emitter.removeAwaited();
+				this.run();
+			} catch (error: any) {
+				this.invalidatedIds.clear();
+				this.emitter.emit('event', {
+					code: 'ERROR',
+					error,
+					result: null
+				});
+				this.emitter.emit('event', {
+					code: 'END'
+				});
 			}
-			this.invalidatedIds.clear();
-			this.emitter.emit('restart');
-			this.run();
 		}, this.buildDelay);
 	}
 
-	private async run() {
+	private async run(): Promise<void> {
 		this.running = true;
 		this.emitter.emit('event', {
 			code: 'START'
@@ -123,15 +139,15 @@ export class Task {
 	watchFiles: string[] = [];
 
 	private closed = false;
-	private fileWatcher: FileWatcher;
+	private readonly fileWatcher: FileWatcher;
 	private filter: (id: string) => boolean;
 	private invalidated = true;
-	private options: MergedRollupOptions;
-	private outputFiles: string[];
-	private outputs: OutputOptions[];
+	private readonly options: MergedRollupOptions;
+	private readonly outputFiles: string[];
+	private readonly outputs: OutputOptions[];
 	private skipWrite: boolean;
 	private watched = new Set<string>();
-	private watcher: Watcher;
+	private readonly watcher: Watcher;
 
 	constructor(watcher: Watcher, config: GenericConfigObject) {
 		this.watcher = watcher;
@@ -140,7 +156,7 @@ export class Task {
 		this.options = mergeOptions(config);
 		this.outputs = this.options.output;
 		this.outputFiles = this.outputs.map(output => {
-			if (output.file || output.dir) return path.resolve(output.file || output.dir!);
+			if (output.file || output.dir) return resolve(output.file || output.dir!);
 			return undefined as never;
 		});
 
@@ -162,7 +178,7 @@ export class Task {
 		this.invalidated = true;
 		if (details.isTransformDependency) {
 			for (const module of this.cache.modules) {
-				if (module.transformDependencies.indexOf(id) === -1) continue;
+				if (!module.transformDependencies.includes(id)) continue;
 				// effective invalidation
 				module.originalCode = null as never;
 			}
@@ -202,7 +218,7 @@ export class Task {
 				output: this.outputFiles,
 				result
 			});
-		} catch (error) {
+		} catch (error: any) {
 			if (!this.closed) {
 				if (Array.isArray(error.watchFiles)) {
 					for (const id of error.watchFiles) {

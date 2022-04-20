@@ -1,12 +1,12 @@
-import { NormalizedOutputOptions } from '../rollup/types';
-import { PluginDriver } from './PluginDriver';
+import type { NormalizedOutputOptions } from '../rollup/types';
+import type { PluginDriver } from './PluginDriver';
 import { error } from './error';
 
 export interface Addons {
-	banner?: string;
-	footer?: string;
-	intro?: string;
-	outro?: string;
+	banner: string;
+	footer: string;
+	intro: string;
+	outro: string;
 }
 
 const concatSep = (out: string, next: string) => (next ? `${out}\n${next}` : out);
@@ -29,7 +29,7 @@ export async function createAddons(
 		if (footer.length) footer = '\n' + footer;
 
 		return { banner, footer, intro, outro };
-	} catch (err) {
+	} catch (err: any) {
 		return error({
 			code: 'ADDON_ERROR',
 			message: `Could not retrieve ${err.hook}. Check configuration of plugin ${err.plugin}.

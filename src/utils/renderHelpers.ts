@@ -1,12 +1,12 @@
-import MagicString from 'magic-string';
-import { Node, StatementNode } from '../ast/nodes/shared/Node';
-import Variable from '../ast/variables/Variable';
-import { InternalModuleFormat } from '../rollup/types';
-import { PluginDriver } from './PluginDriver';
+import type MagicString from 'magic-string';
+import type { Node, StatementNode } from '../ast/nodes/shared/Node';
+import type Variable from '../ast/variables/Variable';
+import type { InternalModuleFormat } from '../rollup/types';
+import type { PluginDriver } from './PluginDriver';
+import type { GenerateCodeSnippets } from './generateCodeSnippets';
 import { treeshakeNode } from './treeshakeNode';
 
 export interface RenderOptions {
-	compact: boolean;
 	dynamicImportFunction: string | undefined;
 	exportNamesByVariable: Map<Variable, string[]>;
 	format: InternalModuleFormat;
@@ -14,7 +14,7 @@ export interface RenderOptions {
 	indent: string;
 	namespaceToStringTag: boolean;
 	outputPluginDriver: PluginDriver;
-	varOrConst: 'var' | 'const';
+	snippets: GenerateCodeSnippets;
 }
 
 export interface NodeRenderOptions {
@@ -89,7 +89,7 @@ function findFirstLineBreakOutsideComment(code: string): [number, number] {
 }
 
 export function renderStatementList(
-	statements: StatementNode[],
+	statements: readonly StatementNode[],
 	code: MagicString,
 	start: number,
 	end: number,
@@ -134,7 +134,7 @@ export function renderStatementList(
 
 // This assumes that the first character is not part of the first node
 export function getCommaSeparatedNodesWithBoundaries<N extends Node>(
-	nodes: N[],
+	nodes: readonly N[],
 	code: MagicString,
 	start: number,
 	end: number

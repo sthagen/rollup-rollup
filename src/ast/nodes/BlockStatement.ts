@@ -1,16 +1,16 @@
-import MagicString from 'magic-string';
-import { RenderOptions, renderStatementList } from '../../utils/renderHelpers';
-import { HasEffectsContext, InclusionContext } from '../ExecutionContext';
+import type MagicString from 'magic-string';
+import { type RenderOptions, renderStatementList } from '../../utils/renderHelpers';
+import type { HasEffectsContext, InclusionContext } from '../ExecutionContext';
 import BlockScope from '../scopes/BlockScope';
-import ChildScope from '../scopes/ChildScope';
-import Scope from '../scopes/Scope';
+import type ChildScope from '../scopes/ChildScope';
+import type Scope from '../scopes/Scope';
 import ExpressionStatement from './ExpressionStatement';
 import * as NodeType from './NodeType';
 import { UNKNOWN_EXPRESSION } from './shared/Expression';
-import { IncludeChildren, Node, StatementBase, StatementNode } from './shared/Node';
+import { type IncludeChildren, type Node, StatementBase, type StatementNode } from './shared/Node';
 
 export default class BlockStatement extends StatementBase {
-	declare body: StatementNode[];
+	declare body: readonly StatementNode[];
 	declare type: NodeType.tBlockStatement;
 
 	private declare deoptimizeBody: boolean;
@@ -32,14 +32,14 @@ export default class BlockStatement extends StatementBase {
 	hasEffects(context: HasEffectsContext): boolean {
 		if (this.deoptimizeBody) return true;
 		for (const node of this.body) {
-			if (node.hasEffects(context)) return true;
 			if (context.brokenFlow) break;
+			if (node.hasEffects(context)) return true;
 		}
 		return false;
 	}
 
 	include(context: InclusionContext, includeChildrenRecursively: IncludeChildren): void {
-		if (!this.deoptimizeBody || !this.directlyIncluded) {
+		if (!(this.deoptimizeBody && this.directlyIncluded)) {
 			this.included = true;
 			this.directlyIncluded = true;
 			if (this.deoptimizeBody) includeChildrenRecursively = true;

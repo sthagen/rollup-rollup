@@ -91,7 +91,7 @@ export default {
 };
 ```
 
-The option can be omitted if some plugin emits at least one chunk (using [`this.emitFile`](guide/en/#thisemitfileemittedfile-emittedchunk--emittedasset--string)) by the end of the [`buildStart`](guide/en/#buildstart) hook.
+The option can be omitted if some plugin emits at least one chunk (using [`this.emitFile`](guide/en/#thisemitfile)) by the end of the [`buildStart`](guide/en/#buildstart) hook.
 
 When using the command line interface, multiple inputs can be provided by using the option multiple times. When provided as the first options, it is equivalent to not prefix them with `--input`:
 
@@ -422,7 +422,7 @@ The pattern to use for naming shared chunks created when code-splitting, or a fu
 
 - `[format]`: The rendering format defined in the output options, e.g. `es` or `cjs`.
 - `[hash]`: A hash based on the content of the chunk and the content of all its dependencies.
-- `[name]`: The name of the chunk. This can be explicitly set via the [`output.manualChunks`](guide/en/#outputmanualchunks) option or when the chunk is created by a plugin via [`this.emitFile`](guide/en/#thisemitfileemittedfile-emittedchunk--emittedasset--string). Otherwise, it will be derived from the chunk contents.
+- `[name]`: The name of the chunk. This can be explicitly set via the [`output.manualChunks`](guide/en/#outputmanualchunks) option or when the chunk is created by a plugin via [`this.emitFile`](guide/en/#thisemitfile). Otherwise, it will be derived from the chunk contents.
 
 Forward slashes `/` can be used to place files in sub-directories. When using a function, `chunkInfo` is a reduced version of the one in [`generateBundle`](guide/en/#generatebundle) without properties that depend on file names. See also [`output.assetFileNames`](guide/en/#outputassetfilenames), [`output.entryFileNames`](guide/en/#outputentryfilenames).
 
@@ -457,6 +457,153 @@ This pattern will also be used when setting the [`output.preserveModules`](guide
 Type: `boolean`<br> CLI: `--extend`/`--no-extend`<br> Default: `false`
 
 Whether to extend the global variable defined by the `name` option in `umd` or `iife` formats. When `true`, the global variable will be defined as `(global.name = global.name || {})`. When false, the global defined by `name` will be overwritten like `(global.name = {})`.
+
+#### output.generatedCode
+
+Type: `"es5" | "es2015" | { arrowFunctions?: boolean, constBindings?: boolean, objectShorthand?: boolean, preset?: "es5" | "es2015", reservedNamesAsProps?: boolean, symbols?: boolean }`<br> CLI: `--generatedCode <preset>`<br> Default: `"es5"`
+
+Which language features Rollup can safely use in generated code. This will not transpile any user code but only change the code Rollup uses in wrappers and helpers. You may choose one of several presets:
+
+- `"es5"`: Do not use ES2015+ features like arrow functions, but do not quote reserved names used as props.
+- `"es2015"`: Use any JavaScript features up to ES2015.
+
+**output.generatedCode.arrowFunctions**<br> Type: `boolean`<br> CLI: `--generatedCode.arrowFunctions`/`--no-generatedCode.arrowFunctions`<br> Default: `false`
+
+Whether to use arrow functions for auto-generated code snippets. Note that in certain places like module wrappers, Rollup will keep using regular functions wrapped in parentheses as in some JavaScript engines, these will provide [noticeably better performance](https://v8.dev/blog/preparser#pife).
+
+**output.generatedCode.constBindings**<br> Type: `boolean`<br> CLI: `--generatedCode.constBindings`/`--no-generatedCode.constBindings`<br> Default: `false`
+
+This will use `const` instead of `var` in certain places and helper functions. This will allow Rollup to generate more efficient helpers due to block scoping.
+
+```js
+// input
+export * from 'external';
+
+// cjs output with constBindings: false
+var external = require('external');
+
+Object.keys(external).forEach(function (k) {
+  if (k !== 'default' && !exports.hasOwnProperty(k))
+    Object.defineProperty(exports, k, {
+      enumerable: true,
+      get: function () {
+        return external[k];
+      }
+    });
+});
+
+// cjs output with constBindings: true
+const external = require('external');
+
+for (const k in external) {
+  if (k !== 'default' && !exports.hasOwnProperty(k))
+    Object.defineProperty(exports, k, {
+      enumerable: true,
+      get: () => external[k]
+    });
+}
+```
+
+**output.generatedCode.objectShorthand**<br> Type: `boolean`<br> CLI: `--generatedCode.objectShorthand`/`--no-generatedCode.objectShorthand`<br> Default: `false`
+
+Allows the use of shorthand notation in objects when the property name matches the value.
+
+```javascript
+// input
+const foo = 1;
+export { foo, foo as bar };
+
+// system output with objectShorthand: false
+System.register('bundle', [], function (exports) {
+  'use strict';
+  return {
+    execute: function () {
+      const foo = 1;
+      exports({ foo: foo, bar: foo });
+    }
+  };
+});
+
+// system output with objectShorthand: true
+System.register('bundle', [], function (exports) {
+  'use strict';
+  return {
+    execute: function () {
+      const foo = 1;
+      exports({ foo, bar: foo });
+    }
+  };
+});
+```
+
+**output.generatedCode.preset**<br> Type: `"es5" | "es2015"`<br> CLI: `--generatedCode <value>`
+
+Allows choosing one of the presets listed above while overriding some options.
+
+```js
+export default {
+  // ...
+  output: {
+    generatedCode: {
+      preset: 'es2015',
+      arrowFunctions: false
+    }
+    // ...
+  }
+};
+```
+
+**output.generatedCode.reservedNamesAsProps**<br> Type: `boolean`<br> CLI: `--generatedCode.reservedNamesAsProps`/`--no-generatedCode.reservedNamesAsProps`<br> Default: `false`
+
+Determine whether reserved words like "default" can be used as prop names without using quotes. This will make the syntax of the generated code ES3 compliant. Note however that for full ES3 compliance, you may also need to polyfill some builtin functions like `Object.keys` or `Array.prototype.forEach`.
+
+```javascript
+// input
+const foo = null;
+export { foo as void };
+
+// cjs output with reservedNamesAsProps: false
+Object.defineProperty(exports, '__esModule', { value: true });
+
+const foo = null;
+
+exports['void'] = foo;
+
+// cjs output with reservedNamesAsProps: true
+Object.defineProperty(exports, '__esModule', { value: true });
+
+const foo = null;
+
+exports.void = foo;
+```
+
+**output.generatedCode.symbols**<br> Type: `boolean`<br> CLI: `--generatedCode.symbols`/`--no-generatedCode.symbols`<br> Default: `false`
+
+Whether to allow the use of `Symbol` in auto-generated code snippets. Currently, this only controls if namespaces will have the `Symbol.toStringTag` property set to the correct value of `Module`, which means that for a namespace, `String(namespace)` logs `[object Module]`. This again is used for feature detection in certain libraries and frameworks.
+
+```javascript
+// input
+export const foo = 42;
+
+// cjs output with symbols: false
+Object.defineProperty(exports, '__esModule', { value: true });
+
+const foo = 42;
+
+exports.foo = foo;
+
+// cjs output with symbols: true
+Object.defineProperties(exports, {
+  __esModule: { value: true },
+  [Symbol.toStringTag]: { value: 'Module' }
+});
+
+const foo = 42;
+
+exports.foo = foo;
+```
+
+Note: The `__esModule` flag in the example can be prevented via the [`output.esModule`](https://rollupjs.org/guide/en/#outputesmodule) option.
 
 #### output.hoistTransitiveImports
 
@@ -704,7 +851,7 @@ manualChunks(id) {
 
 Be aware that manual chunks can change the behaviour of the application if side effects are triggered before the corresponding modules are actually used.
 
-When using the function form, `manualChunks` will be passed an object as second parameter containing the functions `getModuleInfo` and `getModuleIds` that work the same way as [`this.getModuleInfo`](guide/en/#thisgetmoduleinfomoduleid-string--moduleinfo--null) and [`this.getModuleIds`](guide/en/#thisgetmoduleids--iterableiteratorstring) on the plugin context.
+When using the function form, `manualChunks` will be passed an object as second parameter containing the functions `getModuleInfo` and `getModuleIds` that work the same way as [`this.getModuleInfo`](guide/en/#thisgetmoduleinfo) and [`this.getModuleIds`](guide/en/#thisgetmoduleids) on the plugin context.
 
 This can be used to dynamically determine into which manual chunk a module should be placed depending on its position in the module graph. For instance consider a scenario where you have a set of components, each of which dynamically imports a set of translated strings, i.e.
 
@@ -746,7 +893,7 @@ manualChunks(id, { getModuleInfo }) {
       for (const importerId of importers) idsToHandle.add(importerId);
     }
 
-    // If there is a unique entry, we put it into into a chunk based on the entry name
+    // If there is a unique entry, we put it into a chunk based on the entry name
     if (dependentEntryPoints.length === 1) {
       return `${dependentEntryPoints[0].split('/').slice(-1)[0].split('.')[0]}.strings.${language}`;
     }
@@ -1050,7 +1197,7 @@ const shared = 'shared';
 console.log(shared);
 ```
 
-At the moment, the only way to override this setting for individual entry chunks is to use the plugin API and emit those chunks via [`this.emitFile`](guide/en/#thisemitfileemittedfile-emittedchunk--emittedasset--string) instead of using the [`input`](guide/en/#input) option.
+At the moment, the only way to override this setting for individual entry chunks is to use the plugin API and emit those chunks via [`this.emitFile`](guide/en/#thisemitfile) instead of using the [`input`](guide/en/#input) option.
 
 #### strictDeprecations
 
@@ -1256,8 +1403,6 @@ Example:
 export { x } from 'external';
 
 // CJS output with externalLiveBindings: true
-('use strict');
-
 Object.defineProperty(exports, '__esModule', { value: true });
 
 var external = require('external');
@@ -1270,8 +1415,6 @@ Object.defineProperty(exports, 'x', {
 });
 
 // CJS output with externalLiveBindings: false
-('use strict');
-
 Object.defineProperty(exports, '__esModule', { value: true });
 
 var external = require('external');
@@ -1301,19 +1444,6 @@ export default {
   }
 };
 ```
-
-#### output.namespaceToStringTag
-
-Type: `boolean`<br> CLI: `--namespaceToStringTag`/`--no-namespaceToStringTag`<br> Default: `false`
-
-Whether to add spec compliant `.toString()` tags to namespace objects. If this option is set,
-
-```javascript
-import * as namespace from './file.js';
-console.log(String(namespace));
-```
-
-will always log `[object Module]`;
 
 #### output.noConflict
 
@@ -1525,7 +1655,7 @@ Note that despite the name, this option does not "add" side effects to modules t
 
 **treeshake.preset**<br> Type: `"smallest" | "safest" | "recommended"`<br> CLI: `--treeshake <value>`<br>
 
-Allows choosing one of the presets listed above while overriding some of the options.
+Allows choosing one of the presets listed above while overriding some options.
 
 ```js
 export default {
@@ -1631,7 +1761,7 @@ Whether to collect performance timings. When used from the command line or a con
 
 `getTimings()` returns an object of the following form:
 
-```json
+```
 {
   "# BUILD": [ 698.020877, 33979632, 45328080 ],
   "## parse modules": [ 537.509342, 16295024, 27660296 ],
@@ -1733,15 +1863,17 @@ _Use the [`output.inlineDynamicImports`](guide/en/#outputinlinedynamicimports) o
 
 _Use the [`output.manualChunks`](guide/en/#outputmanualchunks) output option instead, which has the same signature._
 
-#### preserveModules
-
-_Use the [`output.preserveModules`](guide/en/#outputpreservemodules) output option instead, which has the same signature._
-
 #### output.dynamicImportFunction
 
 _Use the [`renderDynamicImport`](guide/en/#renderdynamicimport) plugin hook instead._<br> Type: `string`<br> CLI: `--dynamicImportFunction <name>`<br> Default: `import`
 
 This will rename the dynamic import function to the chosen name when outputting ES bundles. This is useful for generating code that uses a dynamic import polyfill such as [this one](https://github.com/uupaa/dynamic-import-polyfill).
+
+#### output.preferConst
+
+_Use the [`output.generatedCode.constBindings`](guide/en/#outputgeneratedcode) option instead._<br> Type: `boolean`<br> CLI: `--preferConst`/`--no-preferConst`<br> Default: `false`
+
+Generate `const` declarations for exports rather than `var` declarations.
 
 #### treeshake.pureExternalModules
 
@@ -1769,3 +1901,20 @@ console.log(42);
 ```
 
 You can also supply a list of external ids to be considered pure or a function that is called whenever an external import could be removed.
+
+#### output.namespaceToStringTag
+
+_Use [`output.generatedCode.symbols`](guide/en/#outputgeneratedcode) instead._<br> Type: `boolean`<br> CLI: `--namespaceToStringTag`/`--no-namespaceToStringTag`<br> Default: `false`
+
+Whether to add spec compliant `.toString()` tags to namespace objects. If this option is set,
+
+```javascript
+import * as namespace from './file.js';
+console.log(String(namespace));
+```
+
+will always log `[object Module]`;
+
+#### preserveModules
+
+_Use the [`output.preserveModules`](guide/en/#outputpreservemodules) output option instead, which has the same signature._

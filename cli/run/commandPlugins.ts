@@ -1,42 +1,47 @@
-import * as path from 'path';
-import { InputOptions } from '../../src/rollup/types';
+import { resolve } from 'path';
+import type { InputOptions } from '../../src/rollup/types';
 import { stdinPlugin } from './stdin';
 import { waitForInputPlugin } from './waitForInput';
 
-export function addCommandPluginsToInputOptions(
+export async function addCommandPluginsToInputOptions(
 	inputOptions: InputOptions,
 	command: Record<string, unknown>
-): void {
+): Promise<void> {
 	if (command.stdin !== false) {
 		inputOptions.plugins!.push(stdinPlugin(command.stdin));
 	}
 	if (command.waitForBundleInput === true) {
 		inputOptions.plugins!.push(waitForInputPlugin());
 	}
-	addPluginsFromCommandOption(command.plugin, inputOptions);
+	await addPluginsFromCommandOption(command.plugin, inputOptions);
 }
 
-export function addPluginsFromCommandOption(
+export async function addPluginsFromCommandOption(
 	commandPlugin: unknown,
 	inputOptions: InputOptions
-): void {
+): Promise<void> {
 	if (commandPlugin) {
 		const plugins = Array.isArray(commandPlugin) ? commandPlugin : [commandPlugin];
 		for (const plugin of plugins) {
 			if (/[={}]/.test(plugin)) {
 				// -p plugin=value
 				// -p "{transform(c,i){...}}"
-				loadAndRegisterPlugin(inputOptions, plugin);
+				await loadAndRegisterPlugin(inputOptions, plugin);
 			} else {
 				// split out plugins joined by commas
 				// -p node-resolve,commonjs,buble
-				plugin.split(',').forEach((plugin: string) => loadAndRegisterPlugin(inputOptions, plugin));
+				for (const p of plugin.split(',')) {
+					await loadAndRegisterPlugin(inputOptions, p);
+				}
 			}
 		}
 	}
 }
 
-function loadAndRegisterPlugin(inputOptions: InputOptions, pluginText: string): void {
+async function loadAndRegisterPlugin(
+	inputOptions: InputOptions,
+	pluginText: string
+): Promise<void> {
 	let plugin: any = null;
 	let pluginArg: any = undefined;
 	if (pluginText[0] === '{') {
@@ -57,19 +62,19 @@ function loadAndRegisterPlugin(inputOptions: InputOptions, pluginText: string): 
 			// Prefix order is significant - left has higher precedence.
 			for (const prefix of ['@rollup/plugin-', 'rollup-plugin-']) {
 				try {
-					plugin = require(prefix + pluginText);
+					plugin = await requireOrImport(prefix + pluginText);
 					break;
-				} catch (ex) {
+				} catch {
 					// if this does not work, we try requiring the actual name below
 				}
 			}
 		}
 		if (!plugin) {
 			try {
-				if (pluginText[0] == '.') pluginText = path.resolve(pluginText);
-				plugin = require(pluginText);
-			} catch (ex) {
-				throw new Error(`Cannot load plugin "${pluginText}": ${ex.message}.`);
+				if (pluginText[0] == '.') pluginText = resolve(pluginText);
+				plugin = await requireOrImport(pluginText);
+			} catch (err: any) {
+				throw new Error(`Cannot load plugin "${pluginText}": ${err.message}.`);
 			}
 		}
 	}
@@ -98,4 +103,12 @@ function getCamelizedPluginBaseName(pluginText: string): string {
 		.split('-')
 		.map((part, index) => (index === 0 || !part ? part : part[0].toUpperCase() + part.slice(1)))
 		.join('');
+}
+
+async function requireOrImport(pluginPath: string): Promise<any> {
+	try {
+		return require(pluginPath);
+	} catch {
+		return import(pluginPath);
+	}
 }

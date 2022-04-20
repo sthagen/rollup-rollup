@@ -1,3 +1,4 @@
+import process from 'process';
 import help from 'help.md';
 import { version } from 'package.json';
 import argParser from 'yargs-parser';
@@ -16,7 +17,7 @@ if (command.help || (process.argv.length <= 2 && process.stdin.isTTY)) {
 } else {
 	try {
 		require('source-map-support').install();
-	} catch (err) {
+	} catch {
 		// do nothing
 	}
 

@@ -1,20 +1,20 @@
-import {
+import type {
 	ExternalOption,
 	InputOptions,
 	MergedRollupOptions,
 	OutputOptions,
 	RollupCache,
-	TreeshakingPreset,
 	WarningHandler,
 	WarningHandlerWithDefault
 } from '../../rollup/types';
 import { ensureArray } from '../ensureArray';
-import { errInvalidOption, error } from '../error';
-import { printQuotedStringList } from '../printStringList';
-import { CommandConfigObject } from './normalizeInputOptions';
+import type { CommandConfigObject } from './normalizeInputOptions';
 import {
 	defaultOnWarn,
-	GenericConfigObject,
+	generatedCodePresets,
+	type GenericConfigObject,
+	objectifyOption,
+	objectifyOptionWithPresets,
 	treeshakePresets,
 	warnUnknownOptions
 } from './options';
@@ -87,7 +87,7 @@ function getCommandOptions(rawCommandOptions: GenericConfigObject): CommandConfi
 				? rawCommandOptions.globals.split(',').reduce((globals, globalDefinition) => {
 						const [id, variableName] = globalDefinition.split(':');
 						globals[id] = variableName;
-						if (external.indexOf(id) === -1) {
+						if (!external.includes(id)) {
 							external.push(id);
 						}
 						return globals;
@@ -130,8 +130,13 @@ function mergeInputOptions(
 		preserveSymlinks: getOption('preserveSymlinks'),
 		shimMissingExports: getOption('shimMissingExports'),
 		strictDeprecations: getOption('strictDeprecations'),
-		treeshake: getObjectOption(config, overrides, 'treeshake', objectifyTreeshakeOption),
-		watch: getWatch(config, overrides, 'watch')
+		treeshake: getObjectOption(
+			config,
+			overrides,
+			'treeshake',
+			objectifyOptionWithPresets(treeshakePresets, 'treeshake', 'false, true, ')
+		),
+		watch: getWatch(config, overrides)
 	};
 
 	warnUnknownOptions(
@@ -151,7 +156,7 @@ const getExternal = (
 	const configExternal = config.external as ExternalOption | undefined;
 	return typeof configExternal === 'function'
 		? (source: string, importer: string | undefined, isResolved: boolean) =>
-				configExternal(source, importer, isResolved) || overrides.external.indexOf(source) !== -1
+				configExternal(source, importer, isResolved) || overrides.external.includes(source)
 		: ensureArray(configExternal).concat(overrides.external);
 };
 
@@ -167,8 +172,7 @@ const getObjectOption = (
 	config: GenericConfigObject,
 	overrides: GenericConfigObject,
 	name: string,
-	objectifyValue: (value: unknown) => Record<string, unknown> | undefined = value =>
-		(typeof value === 'object' ? value : {}) as Record<string, unknown> | undefined
+	objectifyValue = objectifyOption
 ) => {
 	const commandOption = normalizeObjectOptionValue(overrides[name], objectifyValue);
 	const configOption = normalizeObjectOptionValue(config[name], objectifyValue);
@@ -178,26 +182,18 @@ const getObjectOption = (
 	return configOption;
 };
 
-const objectifyTreeshakeOption = (value: unknown): Record<string, unknown> => {
-	if (typeof value === 'string') {
-		const preset = treeshakePresets[value as TreeshakingPreset];
-		if (preset) {
-			return preset as unknown as Record<string, unknown>;
-		}
-		error(
-			errInvalidOption(
-				'treeshake',
-				`valid values are false, true, ${printQuotedStringList(
-					Object.keys(treeshakePresets)
-				)}. You can also supply an object for more fine-grained control`
-			)
+export const getWatch = (config: GenericConfigObject, overrides: GenericConfigObject) =>
+	config.watch !== false && getObjectOption(config, overrides, 'watch');
+
+export const isWatchEnabled = (optionValue: unknown): boolean => {
+	if (Array.isArray(optionValue)) {
+		return optionValue.reduce(
+			(result, value) => (typeof value === 'boolean' ? value : result),
+			false
 		);
 	}
-	return typeof value === 'object' ? (value as Record<string, unknown>) : {};
+	return optionValue === true;
 };
-
-const getWatch = (config: GenericConfigObject, overrides: GenericConfigObject, name: string) =>
-	config.watch !== false && getObjectOption(config, overrides, name);
 
 export const normalizeObjectOptionValue = (
 	optionValue: unknown,
@@ -242,6 +238,12 @@ function mergeOutputOptions(
 		footer: getOption('footer'),
 		format: getOption('format'),
 		freeze: getOption('freeze'),
+		generatedCode: getObjectOption(
+			config,
+			overrides,
+			'generatedCode',
+			objectifyOptionWithPresets(generatedCodePresets, 'output.generatedCode', '')
+		),
 		globals: getOption('globals'),
 		hoistTransitiveImports: getOption('hoistTransitiveImports'),
 		indent: getOption('indent'),

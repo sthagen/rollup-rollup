@@ -1,11 +1,11 @@
-import { Bundle, Bundle as MagicStringBundle } from 'magic-string';
-import { NormalizedOutputOptions } from '../rollup/types';
+import type { Bundle, Bundle as MagicStringBundle } from 'magic-string';
+import type { NormalizedOutputOptions } from '../rollup/types';
 import getCompleteAmdId from './shared/getCompleteAmdId';
 import { getExportBlock, getNamespaceMarkers } from './shared/getExportBlock';
 import getInteropBlock from './shared/getInteropBlock';
 import removeExtensionFromRelativeAmdId from './shared/removeExtensionFromRelativeAmdId';
 import warnOnBuiltins from './shared/warnOnBuiltins';
-import { FinaliserOptions } from './index';
+import type { FinaliserOptions } from './index';
 
 export default function amd(
 	magicString: MagicStringBundle,
@@ -15,18 +15,17 @@ export default function amd(
 		exports,
 		hasExports,
 		id,
-		indentString: t,
+		indent: t,
 		intro,
 		isEntryFacade,
 		isModuleFacade,
 		namedExportsMode,
 		outro,
-		varOrConst,
+		snippets,
 		warn
 	}: FinaliserOptions,
 	{
 		amd,
-		compact,
 		esModule,
 		externalLiveBindings,
 		freeze,
@@ -38,9 +37,7 @@ export default function amd(
 	warnOnBuiltins(warn, dependencies);
 	const deps = dependencies.map(m => `'${removeExtensionFromRelativeAmdId(m.id)}'`);
 	const args = dependencies.map(m => m.name);
-	const n = compact ? '' : '\n';
-	const s = compact ? '' : ';';
-	const _ = compact ? '' : ' ';
+	const { n, getNonArrowFunctionIntro, _ } = snippets;
 
 	if (namedExportsMode && hasExports) {
 		args.unshift(`exports`);
@@ -66,16 +63,13 @@ export default function amd(
 	magicString.prepend(
 		`${intro}${getInteropBlock(
 			dependencies,
-			varOrConst,
 			interop,
 			externalLiveBindings,
 			freeze,
 			namespaceToStringTag,
 			accessedGlobals,
-			_,
-			n,
-			s,
-			t
+			t,
+			snippets
 		)}`
 	);
 
@@ -84,7 +78,7 @@ export default function amd(
 		dependencies,
 		namedExportsMode,
 		interop,
-		compact,
+		snippets,
 		t,
 		externalLiveBindings
 	);
@@ -92,15 +86,23 @@ export default function amd(
 		namedExportsMode && hasExports,
 		isEntryFacade && esModule,
 		isModuleFacade && namespaceToStringTag,
-		_,
-		n
+		snippets
 	);
 	if (namespaceMarkers) {
 		namespaceMarkers = n + n + namespaceMarkers;
 	}
 	magicString.append(`${exportBlock}${namespaceMarkers}${outro}`);
-	return magicString
-		.indent(t)
-		.prepend(`${amd.define}(${params}function${_}(${args.join(`,${_}`)})${_}{${useStrict}${n}${n}`)
-		.append(`${n}${n}});`);
+	return (
+		magicString
+			.indent(t)
+			// factory function should be wrapped by parentheses to avoid lazy parsing,
+			// cf. https://v8.dev/blog/preparser#pife
+			.prepend(
+				`${amd.define}(${params}(${getNonArrowFunctionIntro(args, {
+					isAsync: false,
+					name: null
+				})}{${useStrict}${n}${n}`
+			)
+			.append(`${n}${n}}));`)
+	);
 }

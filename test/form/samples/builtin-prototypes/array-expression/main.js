@@ -37,6 +37,8 @@ const _entriesArray = [{ effect() {} }];
 [..._entriesArray.entries()][0][1].effect = () => console.log(1);
 _entriesArray[0].effect();
 
+const _flat = [].flat().join(',').trim();
+const _flat2 = [].flat(1).join(',').trim();
 const _includes = [].includes(1).valueOf();
 const _indexOf = [].indexOf(1).toPrecision(1);
 const _join = [].join(',').trim();
@@ -72,17 +74,47 @@ const _findArray = [{ effect() {} }];
 _findArray.find(element => (element.effect = () => console.log(1)));
 _findArray[0].effect();
 
+const _findLast = [1].findLast(() => true);
+const _findLastEffect = [1].findLast(() => console.log(1) || true);
+const _findLastArray = [{ effect() {} }];
+_findLastArray.findLast(element => (element.effect = () => console.log(1)));
+_findLastArray[0].effect();
+
 const _findIndex = [1].findIndex(() => true).toPrecision(1);
 const _findIndexEffect = [1].findIndex(() => console.log(1) || true);
 const _findIndexArray = [{ effect() {} }];
 _findIndexArray.findIndex(element => (element.effect = () => console.log(1)));
 _findIndexArray[0].effect();
 
+const _findLastIndex = [1].findLastIndex(() => true).toPrecision(1);
+const _findLastIndexEffect = [1].findLastIndex(() => console.log(1) || true);
+const _findLastIndexArray = [{ effect() {} }];
+_findLastIndexArray.findLastIndex(element => (element.effect = () => console.log(1)));
+_findLastIndexArray[0].effect();
+
+const _flatMap = [1].flatMap(() => 1).join(',');
+const _flatMapEffect = [1].flatMap(() => console.log(1) || 1);
+const _flatMapArray = [{ effect() {} }];
+_flatMapArray.flatMap(element => (element.effect = () => console.log(1)));
+_flatMapArray[0].effect();
+
 const _forEach = [1].forEach(() => {});
 const _forEachEffect = [1].forEach(() => console.log(1) || true);
 const _forEachArray = [{ effect() {} }];
 _forEachArray.forEach(element => (element.effect = () => console.log(1)));
 _forEachArray[0].effect();
+
+const _groupBy = [1].groupBy(() => true);
+const _groupByEffect = [1].groupBy(() => console.log(1) || true);
+const _groupByArray = [{ effect() {} }];
+_groupByArray.groupBy((_, element) => (element.effect = () => console.log(1)));
+_groupByArray[0].effect();
+
+const _groupByToMap = [1].groupByToMap(() => true);
+const _groupByToMapEffect = [1].groupByToMap(() => console.log(1) || true);
+const _groupByToMapArray = [{ effect() {} }];
+_groupByToMapArray.groupBy((_, element) => (element.effect = () => console.log(1)));
+_groupByToMapArray[0].effect();
 
 const _map = [1].map(() => 1).join(',');
 const _mapEffect = [1].map(() => console.log(1) || 1);
@@ -131,10 +163,11 @@ exported.splice(0);
 const _unshift = [1].unshift(0).toPrecision(1);
 exported.unshift(0);
 
+const _toLocaleString = [1].toLocaleString().trim();
+const _toString = [1].toString().trim();
+
 // inherited
 const _hasOwnProperty = [1].hasOwnProperty('toString').valueOf();
 const _isPrototypeOf = [1].isPrototypeOf([]).valueOf();
 const _propertyIsEnumerable = [1].propertyIsEnumerable('toString').valueOf();
-const _toLocaleString = [1].toLocaleString().trim();
-const _toString = [1].toString().trim();
 const _valueOf = [1].valueOf();

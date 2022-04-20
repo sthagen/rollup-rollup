@@ -1,6 +1,6 @@
 /* eslint sort-keys: "off" */
 
-import { ObjectPath } from '../../utils/PathTracker';
+import type { ObjectPath } from '../../utils/PathTracker';
 
 const ValueProperties = Symbol('Value Properties');
 
@@ -173,8 +173,6 @@ const knownGlobals: GlobalDescription = {
 		__proto__: null,
 		[ValueProperties]: PURE,
 		create: PF,
-		getNotifier: PF,
-		getOwn: PF,
 		getOwnPropertyDescriptor: PF,
 		getOwnPropertyNames: PF,
 		getOwnPropertySymbols: PF,
@@ -184,6 +182,8 @@ const knownGlobals: GlobalDescription = {
 		isFrozen: PF,
 		isSealed: PF,
 		keys: PF,
+		fromEntries: PF,
+		entries: PF,
 		prototype: O
 	},
 	parseFloat: PF,

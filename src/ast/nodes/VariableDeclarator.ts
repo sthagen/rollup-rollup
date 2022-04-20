@@ -1,18 +1,18 @@
-import MagicString from 'magic-string';
+import type MagicString from 'magic-string';
 import { BLANK } from '../../utils/blank';
 import { isReassignedExportsMember } from '../../utils/reassignedExportsMember';
 import {
 	findFirstOccurrenceOutsideComment,
 	findNonWhiteSpace,
-	RenderOptions
+	type RenderOptions
 } from '../../utils/renderHelpers';
-import { HasEffectsContext, InclusionContext } from '../ExecutionContext';
-import { ObjectPath } from '../utils/PathTracker';
+import type { HasEffectsContext, InclusionContext } from '../ExecutionContext';
+import type { ObjectPath } from '../utils/PathTracker';
 import { UNDEFINED_EXPRESSION } from '../values';
 import Identifier from './Identifier';
 import * as NodeType from './NodeType';
-import { ExpressionNode, IncludeChildren, NodeBase } from './shared/Node';
-import { PatternNode } from './shared/Pattern';
+import { type ExpressionNode, type IncludeChildren, NodeBase } from './shared/Node';
+import type { PatternNode } from './shared/Pattern';
 
 export default class VariableDeclarator extends NodeBase {
 	declare id: PatternNode;
@@ -45,6 +45,10 @@ export default class VariableDeclarator extends NodeBase {
 	}
 
 	render(code: MagicString, options: RenderOptions): void {
+		const {
+			exportNamesByVariable,
+			snippets: { _ }
+		} = options;
 		const renderId = this.id.included;
 		if (renderId) {
 			this.id.render(code, options);
@@ -60,9 +64,8 @@ export default class VariableDeclarator extends NodeBase {
 			);
 		} else if (
 			this.id instanceof Identifier &&
-			isReassignedExportsMember(this.id.variable!, options.exportNamesByVariable)
+			isReassignedExportsMember(this.id.variable!, exportNamesByVariable)
 		) {
-			const _ = options.compact ? '' : ' ';
 			code.appendLeft(this.end, `${_}=${_}void 0`);
 		}
 	}

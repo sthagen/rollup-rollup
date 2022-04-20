@@ -1,4 +1,4 @@
-import {
+import type {
 	InternalModuleFormat,
 	InteropType,
 	NormalizedInputOptions,
@@ -7,15 +7,20 @@ import {
 	SourcemapPathTransformOption
 } from '../../rollup/types';
 import { ensureArray } from '../ensureArray';
-import { errInvalidExportOptionValue, error, warnDeprecation } from '../error';
+import { errInvalidExportOptionValue, errInvalidOption, error, warnDeprecation } from '../error';
 import { resolve } from '../path';
 import { sanitizeFileName as defaultSanitizeFileName } from '../sanitizeFileName';
-import { GenericConfigObject, warnUnknownOptions } from './options';
+import {
+	generatedCodePresets,
+	type GenericConfigObject,
+	getOptionWithPreset,
+	warnUnknownOptions
+} from './options';
 
 export function normalizeOutputOptions(
 	config: OutputOptions,
 	inputOptions: NormalizedInputOptions,
-	unsetInputOptions: Set<string>
+	unsetInputOptions: ReadonlySet<string>
 ): { options: NormalizedOutputOptions; unsetOptions: Set<string> } {
 	// These are options that may trigger special warnings or behaviour later
 	// if the user did not select an explicit value
@@ -26,6 +31,8 @@ export function normalizeOutputOptions(
 	const inlineDynamicImports = getInlineDynamicImports(config, inputOptions);
 	const preserveModules = getPreserveModules(config, inlineDynamicImports, inputOptions);
 	const file = getFile(config, preserveModules, inputOptions);
+	const preferConst = getPreferConst(config, inputOptions);
+	const generatedCode = getGeneratedCode(config, preferConst);
 
 	const outputOptions: NormalizedOutputOptions & OutputOptions = {
 		amd: getAmd(config),
@@ -44,6 +51,7 @@ export function normalizeOutputOptions(
 		footer: getAddon(config, 'footer'),
 		format,
 		freeze: config.freeze ?? true,
+		generatedCode,
 		globals: config.globals || {},
 		hoistTransitiveImports: config.hoistTransitiveImports ?? true,
 		indent: getIndent(config, compact),
@@ -53,12 +61,12 @@ export function normalizeOutputOptions(
 		manualChunks: getManualChunks(config, inlineDynamicImports, preserveModules, inputOptions),
 		minifyInternalExports: getMinifyInternalExports(config, format, compact),
 		name: config.name,
-		namespaceToStringTag: config.namespaceToStringTag || false,
+		namespaceToStringTag: getNamespaceToStringTag(config, generatedCode, inputOptions),
 		noConflict: config.noConflict || false,
 		outro: getAddon(config, 'outro'),
 		paths: config.paths || {},
 		plugins: ensureArray(config.plugins),
-		preferConst: config.preferConst || false,
+		preferConst,
 		preserveModules,
 		preserveModulesRoot: getPreserveModulesRoot(config),
 		sanitizeFileName:
@@ -95,17 +103,22 @@ const getFile = (
 	const { file } = config;
 	if (typeof file === 'string') {
 		if (preserveModules) {
-			return error({
-				code: 'INVALID_OPTION',
-				message:
-					'You must set "output.dir" instead of "output.file" when using the "output.preserveModules" option.'
-			});
+			return error(
+				errInvalidOption(
+					'output.file',
+					'outputdir',
+					'you must set "output.dir" instead of "output.file" when using the "output.preserveModules" option'
+				)
+			);
 		}
 		if (!Array.isArray(inputOptions.input))
-			return error({
-				code: 'INVALID_OPTION',
-				message: 'You must set "output.dir" instead of "output.file" when providing named inputs.'
-			});
+			return error(
+				errInvalidOption(
+					'output.file',
+					'outputdir',
+					'you must set "output.dir" instead of "output.file" when providing named inputs'
+				)
+			);
 	}
 	return file;
 };
@@ -144,10 +157,13 @@ const getInlineDynamicImports = (
 		(config.inlineDynamicImports ?? inputOptions.inlineDynamicImports) || false;
 	const { input } = inputOptions;
 	if (inlineDynamicImports && (Array.isArray(input) ? input : Object.keys(input)).length > 1) {
-		return error({
-			code: 'INVALID_OPTION',
-			message: 'Multiple inputs are not supported for "output.inlineDynamicImports".'
-		});
+		return error(
+			errInvalidOption(
+				'output.inlineDynamicImports',
+				'outputinlinedynamicimports',
+				'multiple inputs are not supported when "output.inlineDynamicImports" is true'
+			)
+		);
 	}
 	return inlineDynamicImports;
 };
@@ -160,20 +176,40 @@ const getPreserveModules = (
 	const preserveModules = (config.preserveModules ?? inputOptions.preserveModules) || false;
 	if (preserveModules) {
 		if (inlineDynamicImports) {
-			return error({
-				code: 'INVALID_OPTION',
-				message: `The "output.inlineDynamicImports" option is not supported for "output.preserveModules".`
-			});
+			return error(
+				errInvalidOption(
+					'output.inlineDynamicImports',
+					'outputinlinedynamicimports',
+					`this option is not supported for "output.preserveModules"`
+				)
+			);
 		}
 		if (inputOptions.preserveEntrySignatures === false) {
-			return error({
-				code: 'INVALID_OPTION',
-				message:
-					'Setting "preserveEntrySignatures" to "false" is not supported for "output.preserveModules".'
-			});
+			return error(
+				errInvalidOption(
+					'preserveEntrySignatures',
+					'preserveentrysignatures',
+					'setting this option to false is not supported for "output.preserveModules"'
+				)
+			);
 		}
 	}
 	return preserveModules;
+};
+
+const getPreferConst = (
+	config: OutputOptions,
+	inputOptions: NormalizedInputOptions
+): NormalizedOutputOptions['preferConst'] => {
+	const configPreferConst = config.preferConst;
+	if (configPreferConst != null) {
+		warnDeprecation(
+			`The "output.preferConst" option is deprecated. Use the "output.generatedCode.constBindings" option instead.`,
+			false,
+			inputOptions
+		);
+	}
+	return !!configPreferConst;
 };
 
 const getPreserveModulesRoot = (
@@ -187,39 +223,44 @@ const getPreserveModulesRoot = (
 };
 
 const getAmd = (config: OutputOptions): NormalizedOutputOptions['amd'] => {
-	const collection: { autoId: boolean; basePath: string; define: string; id?: string } = {
+	const mergedOption: { autoId: boolean; basePath: string; define: string; id?: string } = {
 		autoId: false,
 		basePath: '',
 		define: 'define',
 		...config.amd
 	};
 
-	if ((collection.autoId || collection.basePath) && collection.id) {
-		return error({
-			code: 'INVALID_OPTION',
-			message:
-				'"output.amd.autoId"/"output.amd.basePath" and "output.amd.id" cannot be used together.'
-		});
+	if ((mergedOption.autoId || mergedOption.basePath) && mergedOption.id) {
+		return error(
+			errInvalidOption(
+				'output.amd.id',
+				'outputamd',
+				'this option cannot be used together with "output.amd.autoId"/"output.amd.basePath"'
+			)
+		);
 	}
-	if (collection.basePath && !collection.autoId) {
-		return error({
-			code: 'INVALID_OPTION',
-			message: '"output.amd.basePath" only works with "output.amd.autoId".'
-		});
+	if (mergedOption.basePath && !mergedOption.autoId) {
+		return error(
+			errInvalidOption(
+				'output.amd.basePath',
+				'outputamd',
+				'this option only works with "output.amd.autoId"'
+			)
+		);
 	}
 
 	let normalized: NormalizedOutputOptions['amd'];
-	if (collection.autoId) {
+	if (mergedOption.autoId) {
 		normalized = {
 			autoId: true,
-			basePath: collection.basePath,
-			define: collection.define
+			basePath: mergedOption.basePath,
+			define: mergedOption.define
 		};
 	} else {
 		normalized = {
 			autoId: false,
-			define: collection.define,
-			id: collection.id
+			define: mergedOption.define,
+			id: mergedOption.id
 		};
 	}
 	return normalized;
@@ -241,11 +282,13 @@ const getDir = (
 ): NormalizedOutputOptions['dir'] => {
 	const { dir } = config;
 	if (typeof dir === 'string' && typeof file === 'string') {
-		return error({
-			code: 'INVALID_OPTION',
-			message:
-				'You must set either "output.file" for a single-file build or "output.dir" when generating multiple chunks.'
-		});
+		return error(
+			errInvalidOption(
+				'output.dir',
+				'outputdir',
+				'you must set either "output.file" for a single-file build or "output.dir" when generating multiple chunks'
+			)
+		);
 	}
 	return dir;
 };
@@ -289,6 +332,25 @@ function getExports(
 	return configExports || 'auto';
 }
 
+const getGeneratedCode = (
+	config: OutputOptions,
+	preferConst: boolean
+): NormalizedOutputOptions['generatedCode'] => {
+	const configWithPreset = getOptionWithPreset(
+		config.generatedCode,
+		generatedCodePresets,
+		'output.generatedCode',
+		''
+	);
+	return {
+		arrowFunctions: configWithPreset.arrowFunctions === true,
+		constBindings: configWithPreset.constBindings === true || preferConst,
+		objectShorthand: configWithPreset.objectShorthand === true,
+		reservedNamesAsProps: configWithPreset.reservedNamesAsProps === true,
+		symbols: configWithPreset.symbols === true
+	};
+};
+
 const getIndent = (config: OutputOptions, compact: boolean): NormalizedOutputOptions['indent'] => {
 	if (compact) {
 		return '';
@@ -297,7 +359,14 @@ const getIndent = (config: OutputOptions, compact: boolean): NormalizedOutputOpt
 	return configIndent === false ? '' : configIndent ?? true;
 };
 
-const ALLOWED_INTEROP_TYPES = new Set(['auto', 'esModule', 'default', 'defaultOnly', true, false]);
+const ALLOWED_INTEROP_TYPES: ReadonlySet<string | boolean> = new Set([
+	'auto',
+	'esModule',
+	'default',
+	'defaultOnly',
+	true,
+	false
+]);
 
 const getInterop = (
 	config: OutputOptions,
@@ -309,16 +378,16 @@ const getInterop = (
 		if (!validatedInteropTypes.has(interop)) {
 			validatedInteropTypes.add(interop);
 			if (!ALLOWED_INTEROP_TYPES.has(interop)) {
-				return error({
-					code: 'INVALID_OPTION',
-					message: `The value ${JSON.stringify(
+				return error(
+					errInvalidOption(
+						'output.interop',
+						'outputinterop',
+						`use one of ${Array.from(ALLOWED_INTEROP_TYPES, value => JSON.stringify(value)).join(
+							', '
+						)}`,
 						interop
-					)} is not supported for "output.interop". Use one of ${Array.from(
-						ALLOWED_INTEROP_TYPES.values(),
-						value => JSON.stringify(value)
-					).join(', ')} instead.`,
-					url: 'https://rollupjs.org/guide/en/#outputinterop'
-				});
+					)
+				);
 			}
 			if (typeof interop === 'boolean') {
 				warnDeprecation(
@@ -358,17 +427,22 @@ const getManualChunks = (
 	const configManualChunks = config.manualChunks || inputOptions.manualChunks;
 	if (configManualChunks) {
 		if (inlineDynamicImports) {
-			return error({
-				code: 'INVALID_OPTION',
-				message:
-					'The "output.manualChunks" option is not supported for "output.inlineDynamicImports".'
-			});
+			return error(
+				errInvalidOption(
+					'output.manualChunks',
+					'outputmanualchunks',
+					'this option is not supported for "output.inlineDynamicImports"'
+				)
+			);
 		}
 		if (preserveModules) {
-			return error({
-				code: 'INVALID_OPTION',
-				message: 'The "output.manualChunks" option is not supported for "output.preserveModules".'
-			});
+			return error(
+				errInvalidOption(
+					'output.manualChunks',
+					'outputmanualchunks',
+					'this option is not supported for "output.preserveModules"'
+				)
+			);
 		}
 	}
 	return configManualChunks || {};
@@ -380,3 +454,20 @@ const getMinifyInternalExports = (
 	compact: boolean
 ): NormalizedOutputOptions['minifyInternalExports'] =>
 	config.minifyInternalExports ?? (compact || format === 'es' || format === 'system');
+
+const getNamespaceToStringTag = (
+	config: OutputOptions,
+	generatedCode: NormalizedOutputOptions['generatedCode'],
+	inputOptions: NormalizedInputOptions
+): NormalizedOutputOptions['namespaceToStringTag'] => {
+	const configNamespaceToStringTag = config.namespaceToStringTag;
+	if (configNamespaceToStringTag != null) {
+		warnDeprecation(
+			`The "output.namespaceToStringTag" option is deprecated. Use the "output.generatedCode.symbols" option instead.`,
+			false,
+			inputOptions
+		);
+		return configNamespaceToStringTag;
+	}
+	return generatedCode.symbols || false;
+};

@@ -1,18 +1,19 @@
 import { version as rollupVersion } from 'package.json';
 import Bundle from '../Bundle';
 import Graph from '../Graph';
-import { PluginDriver } from '../utils/PluginDriver';
+import type { PluginDriver } from '../utils/PluginDriver';
 import { ensureArray } from '../utils/ensureArray';
 import { errAlreadyClosed, errCannotEmitFromOptionsHook, error } from '../utils/error';
-import { writeFile } from '../utils/fs';
+import { promises as fs } from '../utils/fs';
+import { catchUnfinishedHookActions } from '../utils/hookActions';
 import { normalizeInputOptions } from '../utils/options/normalizeInputOptions';
 import { normalizeOutputOptions } from '../utils/options/normalizeOutputOptions';
-import { GenericConfigObject } from '../utils/options/options';
+import type { GenericConfigObject } from '../utils/options/options';
 import { basename, dirname, resolve } from '../utils/path';
 import { ANONYMOUS_OUTPUT_PLUGIN_PREFIX, ANONYMOUS_PLUGIN_PREFIX } from '../utils/pluginUtils';
 import { SOURCEMAPPING_URL } from '../utils/sourceMappingURL';
 import { getTimings, initialiseTimers, timeEnd, timeStart } from '../utils/timers';
-import {
+import type {
 	NormalizedInputOptions,
 	NormalizedOutputOptions,
 	OutputAsset,
@@ -48,20 +49,21 @@ export async function rollupInternal(
 
 	timeStart('BUILD', 1);
 
-	try {
-		await graph.pluginDriver.hookParallel('buildStart', [inputOptions]);
-		await graph.build();
-	} catch (err) {
-		const watchFiles = Object.keys(graph.watchFiles);
-		if (watchFiles.length > 0) {
-			err.watchFiles = watchFiles;
+	await catchUnfinishedHookActions(graph.pluginDriver, async () => {
+		try {
+			await graph.pluginDriver.hookParallel('buildStart', [inputOptions]);
+			await graph.build();
+		} catch (err: any) {
+			const watchFiles = Object.keys(graph.watchFiles);
+			if (watchFiles.length > 0) {
+				err.watchFiles = watchFiles;
+			}
+			await graph.pluginDriver.hookParallel('buildEnd', [err]);
+			await graph.pluginDriver.hookParallel('closeBundle', []);
+			throw err;
 		}
-		await graph.pluginDriver.hookParallel('buildEnd', [err]);
-		await graph.pluginDriver.hookParallel('closeBundle', []);
-		throw err;
-	}
-
-	await graph.pluginDriver.hookParallel('buildEnd', []);
+		await graph.pluginDriver.hookParallel('buildEnd', []);
+	});
 
 	timeEnd('BUILD', 1);
 
@@ -136,19 +138,18 @@ function applyOptionHook(watchMode: boolean) {
 	};
 }
 
-function normalizePlugins(plugins: Plugin[], anonymousPrefix: string): void {
-	for (let pluginIndex = 0; pluginIndex < plugins.length; pluginIndex++) {
-		const plugin = plugins[pluginIndex];
+function normalizePlugins(plugins: readonly Plugin[], anonymousPrefix: string): void {
+	plugins.forEach((plugin, index) => {
 		if (!plugin.name) {
-			plugin.name = `${anonymousPrefix}${pluginIndex + 1}`;
+			plugin.name = `${anonymousPrefix}${index + 1}`;
 		}
-	}
+	});
 }
 
-async function handleGenerateWrite(
+function handleGenerateWrite(
 	isWrite: boolean,
 	inputOptions: NormalizedInputOptions,
-	unsetInputOptions: Set<string>,
+	unsetInputOptions: ReadonlySet<string>,
 	rawOutputOptions: GenericConfigObject,
 	graph: Graph
 ): Promise<RollupOutput> {
@@ -162,26 +163,30 @@ async function handleGenerateWrite(
 		inputOptions,
 		unsetInputOptions
 	);
-	const bundle = new Bundle(outputOptions, unsetOptions, inputOptions, outputPluginDriver, graph);
-	const generated = await bundle.generate(isWrite);
-	if (isWrite) {
-		if (!outputOptions.dir && !outputOptions.file) {
-			return error({
-				code: 'MISSING_OPTION',
-				message: 'You must specify "output.file" or "output.dir" for the build.'
-			});
+	return catchUnfinishedHookActions(outputPluginDriver, async () => {
+		const bundle = new Bundle(outputOptions, unsetOptions, inputOptions, outputPluginDriver, graph);
+		const generated = await bundle.generate(isWrite);
+		if (isWrite) {
+			if (!outputOptions.dir && !outputOptions.file) {
+				return error({
+					code: 'MISSING_OPTION',
+					message: 'You must specify "output.file" or "output.dir" for the build.'
+				});
+			}
+			await Promise.all(
+				Object.values(generated).map(chunk => writeOutputFile(chunk, outputOptions))
+			);
+			await outputPluginDriver.hookParallel('writeBundle', [outputOptions, generated]);
 		}
-		await Promise.all(Object.values(generated).map(chunk => writeOutputFile(chunk, outputOptions)));
-		await outputPluginDriver.hookParallel('writeBundle', [outputOptions, generated]);
-	}
-	return createOutput(generated);
+		return createOutput(generated);
+	});
 }
 
 function getOutputOptionsAndPluginDriver(
 	rawOutputOptions: GenericConfigObject,
 	inputPluginDriver: PluginDriver,
 	inputOptions: NormalizedInputOptions,
-	unsetInputOptions: Set<string>
+	unsetInputOptions: ReadonlySet<string>
 ): {
 	options: NormalizedOutputOptions;
 	outputPluginDriver: PluginDriver;
@@ -202,7 +207,7 @@ function getOutputOptionsAndPluginDriver(
 
 function getOutputOptions(
 	inputOptions: NormalizedInputOptions,
-	unsetInputOptions: Set<string>,
+	unsetInputOptions: ReadonlySet<string>,
 	rawOutputOptions: GenericConfigObject,
 	outputPluginDriver: PluginDriver
 ): { options: NormalizedOutputOptions; unsetOptions: Set<string> } {
@@ -259,11 +264,15 @@ function getSortingFileType(file: OutputAsset | OutputChunk): SortingFileType {
 	return SortingFileType.SECONDARY_CHUNK;
 }
 
-function writeOutputFile(
+async function writeOutputFile(
 	outputFile: OutputAsset | OutputChunk,
 	outputOptions: NormalizedOutputOptions
 ): Promise<unknown> {
 	const fileName = resolve(outputOptions.dir || dirname(outputOptions.file!), outputFile.fileName);
+
+	// 'recursive: true' does not throw if the folder structure, or parts of it, already exist
+	await fs.mkdir(dirname(fileName), { recursive: true });
+
 	let writeSourceMapPromise: Promise<void> | undefined;
 	let source: string | Uint8Array;
 	if (outputFile.type === 'asset') {
@@ -276,7 +285,7 @@ function writeOutputFile(
 				url = outputFile.map.toUrl();
 			} else {
 				url = `${basename(outputFile.fileName)}.map`;
-				writeSourceMapPromise = writeFile(`${fileName}.map`, outputFile.map.toString());
+				writeSourceMapPromise = fs.writeFile(`${fileName}.map`, outputFile.map.toString());
 			}
 			if (outputOptions.sourcemap !== 'hidden') {
 				source += `//# ${SOURCEMAPPING_URL}=${url}\n`;
@@ -284,7 +293,7 @@ function writeOutputFile(
 		}
 	}
 
-	return Promise.all([writeFile(fileName, source), writeSourceMapPromise]);
+	return Promise.all([fs.writeFile(fileName, source), writeSourceMapPromise]);
 }
 
 /**

@@ -1,13 +1,13 @@
 import { version as rollupVersion } from 'package.json';
-import Graph from '../Graph';
-import {
+import type Graph from '../Graph';
+import type {
 	NormalizedInputOptions,
 	Plugin,
 	PluginCache,
 	PluginContext,
 	SerializablePluginCache
 } from '../rollup/types';
-import { FileEmitter } from './FileEmitter';
+import type { FileEmitter } from './FileEmitter';
 import { createPluginCache, getCacheForUncacheablePlugin, NO_CACHE } from './PluginCache';
 import { BLANK } from './blank';
 import { BuildPhase } from './buildPhase';
@@ -18,17 +18,20 @@ import {
 	throwPluginError
 } from './pluginUtils';
 
-// eslint-disable-next-line @typescript-eslint/ban-types
-function getDeprecatedContextHandler<H extends Function>(
-	handler: H,
+function getDeprecatedContextHandler<
+	THandler extends (...args: TParams) => TResult,
+	TParams extends readonly any[],
+	TResult
+>(
+	handler: THandler,
 	handlerName: string,
 	newHandlerName: string,
 	pluginName: string,
 	activeDeprecation: boolean,
 	options: NormalizedInputOptions
-): H {
+): THandler {
 	let deprecationWarningShown = false;
-	return ((...args: any[]) => {
+	return ((...args: TParams): TResult => {
 		if (!deprecationWarningShown) {
 			deprecationWarningShown = true;
 			warnDeprecation(
@@ -41,7 +44,7 @@ function getDeprecatedContextHandler<H extends Function>(
 			);
 		}
 		return handler(...args);
-	}) as unknown as H;
+	}) as THandler;
 }
 
 export function getPluginContext(
@@ -136,12 +139,16 @@ export function getPluginContext(
 			true,
 			options
 		),
+		load(resolvedId) {
+			return graph.moduleLoader.preloadModule(resolvedId);
+		},
 		meta: {
 			rollupVersion,
 			watchMode: graph.watchMode
 		},
 		get moduleIds() {
 			function* wrappedModuleIds() {
+				// We are wrapping this in a generator to only show the message once we are actually iterating
 				warnDeprecation(
 					{
 						message: `Accessing "this.moduleIds" on the plugin context by plugin ${plugin.name} is deprecated. The "this.getModuleIds" plugin context function should be used instead.`,
@@ -157,18 +164,19 @@ export function getPluginContext(
 			return wrappedModuleIds();
 		},
 		parse: graph.contextParse.bind(graph),
-		resolve(source, importer, { custom, skipSelf } = BLANK) {
+		resolve(source, importer, { custom, isEntry, skipSelf } = BLANK) {
 			return graph.moduleLoader.resolveId(
 				source,
 				importer,
 				custom,
+				isEntry,
 				skipSelf ? [{ importer, plugin, source }] : null
 			);
 		},
 		resolveId: getDeprecatedContextHandler(
 			(source: string, importer: string | undefined) =>
 				graph.moduleLoader
-					.resolveId(source, importer, BLANK)
+					.resolveId(source, importer, BLANK, undefined)
 					.then(resolveId => resolveId && resolveId.id),
 			'resolveId',
 			'resolve',

@@ -1,5 +1,6 @@
-const fs = require('fs');
+const { unlinkSync, writeFileSync } = require('fs');
 const path = require('path');
+const { atomicWriteFileSync } = require('../../../../utils');
 
 let configFile;
 
@@ -8,15 +9,16 @@ module.exports = {
 	command: 'rollup -cw',
 	before() {
 		configFile = path.join(__dirname, 'rollup.config.js');
-		fs.writeFileSync(configFile, 'throw new Error("Config contains initial errors");');
+		writeFileSync(configFile, 'throw new Error("Config contains initial errors");');
 	},
 	after() {
-		fs.unlinkSync(configFile);
+		// synchronous sometimes does not seem to work, probably because the watch is not yet removed properly
+		setTimeout(() => unlinkSync(configFile), 300);
 	},
 	async abortOnStderr(data) {
 		if (data.includes('Config contains initial errors')) {
 			await new Promise(resolve => setTimeout(resolve, 100));
-			fs.writeFileSync(
+			atomicWriteFileSync(
 				configFile,
 				'export default {\n' +
 					'\tinput: "main.js",\n' +

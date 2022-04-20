@@ -1,6 +1,7 @@
 const assert = require('assert');
+const { readdirSync } = require('fs');
 const path = require('path');
-const sander = require('sander');
+const { removeSync } = require('fs-extra');
 const rollup = require('../../dist/rollup.js');
 const { loader } = require('../utils.js');
 
@@ -33,9 +34,9 @@ describe('hooks', () => {
 				})
 			)
 			.then(() => {
-				const fileNames = sander.readdirSync(TEMP_DIR).sort();
+				const fileNames = readdirSync(TEMP_DIR).sort();
 				assert.deepStrictEqual(fileNames, ['chunk.js', 'input.js']);
-				return sander.rimraf(TEMP_DIR);
+				return removeSync(TEMP_DIR);
 			}));
 
 	it('supports buildStart and buildEnd hooks', () => {
@@ -574,7 +575,7 @@ describe('hooks', () => {
 			.then(bundle => bundle.write({ format: 'es', file }))
 			.then(() => {
 				assert.strictEqual(callCount, 1);
-				return sander.rimraf(TEMP_DIR);
+				return removeSync(TEMP_DIR);
 			});
 	});
 
@@ -889,7 +890,7 @@ describe('hooks', () => {
 				watcher.close();
 				assert.strictEqual(
 					err.message,
-					'When building multiple chunks, the "output.dir" option must be used, not "output.file". To inline dynamic imports, set the "inlineDynamicImports" option.'
+					'Invalid value for option "output.file" - when building multiple chunks, the "output.dir" option must be used, not "output.file". To inline dynamic imports, set the "inlineDynamicImports" option.'
 				);
 			})
 			.then(() => watcher.close());
@@ -915,7 +916,7 @@ describe('hooks', () => {
 				watcher.close();
 				assert.strictEqual(
 					err.message,
-					'"output.sourcemapFile" is only supported for single-file builds.'
+					'Invalid value for option "output.sourcemapFile" - "output.sourcemapFile" is only supported for single-file builds.'
 				);
 			})
 			.then(() => watcher.close());

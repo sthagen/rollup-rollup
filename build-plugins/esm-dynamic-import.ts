@@ -1,6 +1,6 @@
-import { Plugin } from 'rollup';
+import type { Plugin } from 'rollup';
 
-export default function addBinShebangAndEsmImport(): Plugin {
+export default function esmDynamicImport(): Plugin {
 	let importFound = false;
 	return {
 		generateBundle() {
@@ -13,7 +13,7 @@ export default function addBinShebangAndEsmImport(): Plugin {
 		name: 'esm-dynamic-import',
 		renderDynamicImport({ moduleId }) {
 			importFound = true;
-			if (moduleId.endsWith('loadConfigFile.ts')) {
+			if (moduleId.endsWith('commandPlugins.ts') || moduleId.endsWith('loadConfigFile.ts')) {
 				return { left: 'import(', right: ')' };
 			}
 		}

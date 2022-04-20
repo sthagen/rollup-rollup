@@ -1,8 +1,8 @@
 import Chunk from './Chunk';
-import ExternalModule from './ExternalModule';
-import Graph from './Graph';
+import type ExternalModule from './ExternalModule';
+import type Graph from './Graph';
 import Module from './Module';
-import {
+import type {
 	GetManualChunk,
 	NormalizedInputOptions,
 	NormalizedOutputOptions,
@@ -13,27 +13,29 @@ import {
 	WarningHandler
 } from './rollup/types';
 import { FILE_PLACEHOLDER } from './utils/FileEmitter';
-import { PluginDriver } from './utils/PluginDriver';
-import { Addons, createAddons } from './utils/addons';
+import type { PluginDriver } from './utils/PluginDriver';
+import { type Addons, createAddons } from './utils/addons';
 import { getChunkAssignments } from './utils/chunkAssignment';
 import commondir from './utils/commondir';
 import {
 	errCannotAssignModuleToChunk,
 	errChunkInvalid,
+	errInvalidOption,
 	error,
 	warnDeprecation
 } from './utils/error';
 import { sortByExecutionOrder } from './utils/executionOrder';
+import { type GenerateCodeSnippets, getGenerateCodeSnippets } from './utils/generateCodeSnippets';
 import { basename, isAbsolute } from './utils/path';
 import { timeEnd, timeStart } from './utils/timers';
 
 export default class Bundle {
-	private facadeChunkByModule = new Map<Module, Chunk>();
-	private includedNamespaces = new Set<Module>();
+	private readonly facadeChunkByModule = new Map<Module, Chunk>();
+	private readonly includedNamespaces = new Set<Module>();
 
 	constructor(
 		private readonly outputOptions: NormalizedOutputOptions,
-		private readonly unsetOptions: Set<string>,
+		private readonly unsetOptions: ReadonlySet<string>,
 		private readonly inputOptions: NormalizedInputOptions,
 		private readonly pluginDriver: PluginDriver,
 		private readonly graph: Graph
@@ -59,13 +61,14 @@ export default class Bundle {
 			// We need to create addons before prerender because at the moment, there
 			// can be no async code between prerender and render due to internal state
 			const addons = await createAddons(this.outputOptions, this.pluginDriver);
-			this.prerenderChunks(chunks, inputBase);
+			const snippets = getGenerateCodeSnippets(this.outputOptions);
+			this.prerenderChunks(chunks, inputBase, snippets);
 			timeEnd('render modules', 2);
 
-			await this.addFinalizedChunksToBundle(chunks, inputBase, addons, outputBundle);
-		} catch (error) {
-			await this.pluginDriver.hookParallel('renderError', [error]);
-			throw error;
+			await this.addFinalizedChunksToBundle(chunks, inputBase, addons, outputBundle, snippets);
+		} catch (err: any) {
+			await this.pluginDriver.hookParallel('renderError', [err]);
+			throw err;
 		}
 		await this.pluginDriver.hookSeq('generateBundle', [
 			this.outputOptions,
@@ -79,10 +82,11 @@ export default class Bundle {
 	}
 
 	private async addFinalizedChunksToBundle(
-		chunks: Chunk[],
+		chunks: readonly Chunk[],
 		inputBase: string,
 		addons: Addons,
-		outputBundle: OutputBundleWithPlaceholders
+		outputBundle: OutputBundleWithPlaceholders,
+		snippets: GenerateCodeSnippets
 	): Promise<void> {
 		this.assignChunkIds(chunks, inputBase, addons, outputBundle);
 		for (const chunk of chunks) {
@@ -91,13 +95,16 @@ export default class Bundle {
 		await Promise.all(
 			chunks.map(async chunk => {
 				const outputChunk = outputBundle[chunk.id!] as OutputChunk;
-				Object.assign(outputChunk, await chunk.render(this.outputOptions, addons, outputChunk));
+				Object.assign(
+					outputChunk,
+					await chunk.render(this.outputOptions, addons, outputChunk, snippets)
+				);
 			})
 		);
 	}
 
 	private async addManualChunks(
-		manualChunks: Record<string, string[]>
+		manualChunks: Record<string, readonly string[]>
 	): Promise<Map<Module, string>> {
 		const manualChunkAliasByEntry = new Map<Module, string>();
 		const chunkEntries = await Promise.all(
@@ -115,11 +122,11 @@ export default class Bundle {
 	}
 
 	private assignChunkIds(
-		chunks: Chunk[],
+		chunks: readonly Chunk[],
 		inputBase: string,
 		addons: Addons,
 		bundle: OutputBundleWithPlaceholders
-	) {
+	): void {
 		const entryChunks: Chunk[] = [];
 		const otherChunks: Chunk[] = [];
 		for (const chunk of chunks) {
@@ -130,7 +137,7 @@ export default class Bundle {
 		}
 
 		// make sure entry chunk names take precedence with regard to deconflicting
-		const chunksForNaming: Chunk[] = entryChunks.concat(otherChunks);
+		const chunksForNaming = entryChunks.concat(otherChunks);
 		for (const chunk of chunksForNaming) {
 			if (this.outputOptions.file) {
 				chunk.id = basename(this.outputOptions.file);
@@ -149,7 +156,7 @@ export default class Bundle {
 	}
 
 	private assignManualChunks(getManualChunk: GetManualChunk): Map<Module, string> {
-		const manualChunkAliasByEntry = new Map<Module, string>();
+		const manualChunkAliasesWithEntry: [alias: string, module: Module][] = [];
 		const manualChunksApi = {
 			getModuleIds: () => this.graph.modulesById.keys(),
 			getModuleInfo: this.graph.getModuleInfo
@@ -158,9 +165,16 @@ export default class Bundle {
 			if (module instanceof Module) {
 				const manualChunkAlias = getManualChunk(module.id, manualChunksApi);
 				if (typeof manualChunkAlias === 'string') {
-					addModuleToManualChunk(manualChunkAlias, module, manualChunkAliasByEntry);
+					manualChunkAliasesWithEntry.push([manualChunkAlias, module]);
 				}
 			}
+		}
+		manualChunkAliasesWithEntry.sort(([aliasA], [aliasB]) =>
+			aliasA > aliasB ? 1 : aliasA < aliasB ? -1 : 0
+		);
+		const manualChunkAliasByEntry = new Map<Module, string>();
+		for (const [alias, module] of manualChunkAliasesWithEntry) {
+			addModuleToManualChunk(alias, module, manualChunkAliasByEntry);
 		}
 		return manualChunkAliasByEntry;
 	}
@@ -175,14 +189,14 @@ export default class Bundle {
 				);
 				(file as OutputAsset).type = 'asset';
 			}
-			if (this.outputOptions.validate && typeof (file as OutputChunk).code == 'string') {
+			if (this.outputOptions.validate && 'code' in file) {
 				try {
-					this.graph.contextParse((file as OutputChunk).code, {
+					this.graph.contextParse(file.code, {
 						allowHashBang: true,
 						ecmaVersion: 'latest'
 					});
-				} catch (exception) {
-					this.inputOptions.onwarn(errChunkInvalid(file as OutputChunk, exception));
+				} catch (err: any) {
+					this.inputOptions.onwarn(errChunkInvalid(file, err));
 				}
 			}
 		}
@@ -233,17 +247,21 @@ export default class Bundle {
 		return [...chunks, ...facades];
 	}
 
-	private prerenderChunks(chunks: Chunk[], inputBase: string): void {
+	private prerenderChunks(
+		chunks: readonly Chunk[],
+		inputBase: string,
+		snippets: GenerateCodeSnippets
+	): void {
 		for (const chunk of chunks) {
 			chunk.generateExports();
 		}
 		for (const chunk of chunks) {
-			chunk.preRender(this.outputOptions, inputBase);
+			chunk.preRender(this.outputOptions, inputBase, snippets);
 		}
 	}
 }
 
-function getAbsoluteEntryModulePaths(chunks: Chunk[]): string[] {
+function getAbsoluteEntryModulePaths(chunks: readonly Chunk[]): string[] {
 	const absoluteEntryModulePaths: string[] = [];
 	for (const chunk of chunks) {
 		for (const entryModule of chunk.entryModules) {
@@ -260,43 +278,53 @@ function validateOptionsForMultiChunkOutput(
 	onWarn: WarningHandler
 ) {
 	if (outputOptions.format === 'umd' || outputOptions.format === 'iife')
-		return error({
-			code: 'INVALID_OPTION',
-			message: 'UMD and IIFE output formats are not supported for code-splitting builds.'
-		});
+		return error(
+			errInvalidOption(
+				'output.format',
+				'outputformat',
+				'UMD and IIFE output formats are not supported for code-splitting builds',
+				outputOptions.format
+			)
+		);
 	if (typeof outputOptions.file === 'string')
-		return error({
-			code: 'INVALID_OPTION',
-			message:
-				'When building multiple chunks, the "output.dir" option must be used, not "output.file". ' +
-				'To inline dynamic imports, set the "inlineDynamicImports" option.'
-		});
+		return error(
+			errInvalidOption(
+				'output.file',
+				'outputdir',
+				'when building multiple chunks, the "output.dir" option must be used, not "output.file". To inline dynamic imports, set the "inlineDynamicImports" option'
+			)
+		);
 	if (outputOptions.sourcemapFile)
-		return error({
-			code: 'INVALID_OPTION',
-			message: '"output.sourcemapFile" is only supported for single-file builds.'
-		});
+		return error(
+			errInvalidOption(
+				'output.sourcemapFile',
+				'outputsourcemapfile',
+				'"output.sourcemapFile" is only supported for single-file builds'
+			)
+		);
 	if (!outputOptions.amd.autoId && outputOptions.amd.id)
-		onWarn({
-			code: 'INVALID_OPTION',
-			message:
-				'"output.amd.id" is only properly supported for single-file builds. Use "output.amd.autoId" and "output.amd.basePath".'
-		});
+		onWarn(
+			errInvalidOption(
+				'output.amd.id',
+				'outputamd',
+				'this option is only properly supported for single-file builds. Use "output.amd.autoId" and "output.amd.basePath" instead'
+			)
+		);
 }
 
-function getIncludedModules(modulesById: Map<string, Module | ExternalModule>): Module[] {
+function getIncludedModules(modulesById: ReadonlyMap<string, Module | ExternalModule>): Module[] {
 	return [...modulesById.values()].filter(
-		module =>
+		(module): module is Module =>
 			module instanceof Module &&
 			(module.isIncluded() || module.info.isEntry || module.includedDynamicImporters.length > 0)
-	) as Module[];
+	);
 }
 
 function addModuleToManualChunk(
 	alias: string,
 	module: Module,
 	manualChunkAliasByEntry: Map<Module, string>
-) {
+): void {
 	const existingAlias = manualChunkAliasByEntry.get(module);
 	if (typeof existingAlias === 'string' && existingAlias !== alias) {
 		return error(errCannotAssignModuleToChunk(module.id, alias, existingAlias));

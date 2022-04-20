@@ -1,11 +1,11 @@
-import MagicString from 'magic-string';
-import { RenderOptions } from '../../utils/renderHelpers';
+import type MagicString from 'magic-string';
+import type { RenderOptions } from '../../utils/renderHelpers';
 import { getSystemExportStatement } from '../../utils/systemJsRendering';
-import ChildScope from '../scopes/ChildScope';
-import { IdentifierWithVariable } from './Identifier';
-import * as NodeType from './NodeType';
+import type ChildScope from '../scopes/ChildScope';
+import Identifier, { type IdentifierWithVariable } from './Identifier';
+import type * as NodeType from './NodeType';
 import ClassNode from './shared/ClassNode';
-import { GenericEsTreeNode } from './shared/Node';
+import type { GenericEsTreeNode } from './shared/Node';
 
 export default class ClassDeclaration extends ClassNode {
 	declare id: IdentifierWithVariable | null;
@@ -20,7 +20,7 @@ export default class ClassDeclaration extends ClassNode {
 
 	parseNode(esTreeNode: GenericEsTreeNode): void {
 		if (esTreeNode.id !== null) {
-			this.id = new this.context.nodeConstructors.Identifier(
+			this.id = new Identifier(
 				esTreeNode.id,
 				this,
 				this.scope.parent as ChildScope
@@ -30,15 +30,13 @@ export default class ClassDeclaration extends ClassNode {
 	}
 
 	render(code: MagicString, options: RenderOptions): void {
-		if (
-			options.format === 'system' &&
-			this.id &&
-			options.exportNamesByVariable.has(this.id.variable)
-		) {
-			code.appendLeft(
-				this.end,
-				`${options.compact ? '' : ' '}${getSystemExportStatement([this.id.variable], options)};`
-			);
+		const {
+			exportNamesByVariable,
+			format,
+			snippets: { _ }
+		} = options;
+		if (format === 'system' && this.id && exportNamesByVariable.has(this.id.variable)) {
+			code.appendLeft(this.end, `${_}${getSystemExportStatement([this.id.variable], options)};`);
 		}
 		super.render(code, options);
 	}

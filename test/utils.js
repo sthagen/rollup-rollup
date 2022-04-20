@@ -1,27 +1,35 @@
 const assert = require('assert');
-const path = require('path');
+const {
+	closeSync,
+	fsyncSync,
+	openSync,
+	readdirSync,
+	renameSync,
+	unlinkSync,
+	writeFileSync,
+	writeSync
+} = require('fs');
+const { basename, join } = require('path');
+const { platform, version } = require('process');
 const fixturify = require('fixturify');
-const sander = require('sander');
+const { removeSync } = require('fs-extra');
 
-exports.compareError = compareError;
-exports.compareWarnings = compareWarnings;
-exports.deindent = deindent;
-exports.executeBundle = executeBundle;
-exports.getObject = getObject;
-exports.loader = loader;
-exports.normaliseOutput = normaliseOutput;
-exports.runTestSuiteWithSamples = runTestSuiteWithSamples;
-exports.assertDirectoriesAreEqual = assertDirectoriesAreEqual;
-exports.assertFilesAreEqual = assertFilesAreEqual;
-exports.assertIncludes = assertIncludes;
+exports.wait = function wait(ms) {
+	return new Promise(fulfil => {
+		setTimeout(fulfil, ms);
+	});
+};
 
 function normaliseError(error) {
 	delete error.stack;
 	delete error.toString;
+	if (error.watchFiles) {
+		error.watchFiles.sort();
+	}
 	return { ...error, message: error.message };
 }
 
-function compareError(actual, expected) {
+exports.compareError = function compareError(actual, expected) {
 	actual = normaliseError(actual);
 
 	if (actual.parserError) {
@@ -37,9 +45,9 @@ function compareError(actual, expected) {
 	}
 
 	assert.deepEqual(actual, expected);
-}
+};
 
-function compareWarnings(actual, expected) {
+exports.compareWarnings = function compareWarnings(actual, expected) {
 	assert.deepEqual(
 		actual.map(warning => {
 			const clone = { ...warning };
@@ -58,13 +66,15 @@ function compareWarnings(actual, expected) {
 			return warning;
 		})
 	);
-}
+};
 
 function deindent(str) {
 	return str.slice(1).replace(/^\t+/gm, '').replace(/\s+$/gm, '').trim();
 }
 
-async function executeBundle(bundle, require) {
+exports.deindent = deindent;
+
+exports.executeBundle = async function executeBundle(bundle, require) {
 	const {
 		output: [cjs]
 	} = await bundle.generate({
@@ -75,48 +85,17 @@ async function executeBundle(bundle, require) {
 	const module = { exports: {} };
 	wrapper(module, module.exports, require);
 	return module.exports;
-}
+};
 
-function getObject(entries) {
+exports.getObject = function getObject(entries) {
 	const object = {};
 	for (const [key, value] of entries) {
 		object[key] = value;
 	}
 	return object;
-}
+};
 
-function loadConfig(configFile) {
-	try {
-		return require(configFile);
-	} catch (err) {
-		if (err.code === 'MODULE_NOT_FOUND') {
-			const dir = path.dirname(configFile);
-			removeOldTest(dir);
-		} else {
-			throw new Error(`Failed to load ${configFile}: ${err.message}`);
-		}
-	}
-}
-
-function removeOldOutput(dir) {
-	if (sander.existsSync(path.join(dir, '_actual'))) {
-		sander.rimrafSync(path.join(dir, '_actual'));
-	}
-	if (sander.existsSync(path.join(dir, '_actual.js'))) {
-		sander.unlinkSync(path.join(dir, '_actual.js'));
-	}
-}
-
-function removeOldTest(dir) {
-	removeOldOutput(dir);
-	console.warn(
-		`Test configuration in ${dir} not found.\nTrying to clean up no longer existing test...`
-	);
-	sander.rmdirSync(dir);
-	console.warn('Directory removed.');
-}
-
-function loader(modules) {
+exports.loader = function loader(modules) {
 	modules = Object.assign(Object.create(null), modules);
 	return {
 		resolveId(id) {
@@ -127,17 +106,17 @@ function loader(modules) {
 			return modules[id];
 		}
 	};
-}
+};
 
-function normaliseOutput(code) {
+exports.normaliseOutput = function normaliseOutput(code) {
 	return code.toString().trim().replace(/\r\n/g, '\n');
-}
+};
 
 function runTestSuiteWithSamples(suiteName, samplesDir, runTest, onTeardown) {
 	describe(suiteName, () => runSamples(samplesDir, runTest, onTeardown));
 }
 
-// You can run only or skip certain kinds of tests be appending .only or .skip
+// You can run only or skip certain kinds of tests by appending .only or .skip
 runTestSuiteWithSamples.only = function (suiteName, samplesDir, runTest, onTeardown) {
 	describe.only(suiteName, () => runSamples(samplesDir, runTest, onTeardown));
 };
@@ -146,48 +125,77 @@ runTestSuiteWithSamples.skip = function (suiteName) {
 	describe.skip(suiteName, () => {});
 };
 
+exports.runTestSuiteWithSamples = runTestSuiteWithSamples;
+
 function runSamples(samplesDir, runTest, onTeardown) {
 	if (onTeardown) {
 		afterEach(onTeardown);
 	}
-	sander
-		.readdirSync(samplesDir)
+
+	readdirSync(samplesDir)
 		.filter(name => name[0] !== '.')
 		.sort()
-		.forEach(fileName => runTestsInDir(samplesDir + '/' + fileName, runTest));
+		.forEach(fileName => runTestsInDir(join(samplesDir, fileName), runTest));
 }
 
 function runTestsInDir(dir, runTest) {
-	const fileNames = sander.readdirSync(dir);
-
-	if (fileNames.indexOf('_config.js') >= 0) {
-		removeOldOutput(dir);
+	const fileNames = getFileNamesAndRemoveOutput(dir);
+	if (fileNames.includes('_config.js')) {
 		loadConfigAndRunTest(dir, runTest);
-	} else if (fileNames.indexOf('_actual') >= 0 || fileNames.indexOf('_actual.js') >= 0) {
-		removeOldOutput(dir);
-		removeOldTest(dir);
+	} else if (fileNames.length === 0) {
+		console.warn(`Removing empty test directory ${dir}`);
+		removeSync(dir);
 	} else {
-		describe(path.basename(dir), () => {
+		describe(basename(dir), () => {
 			fileNames
 				.filter(name => name[0] !== '.')
 				.sort()
-				.forEach(fileName => runTestsInDir(dir + '/' + fileName, runTest));
+				.forEach(fileName => runTestsInDir(join(dir, fileName), runTest));
 		});
 	}
 }
 
-function loadConfigAndRunTest(dir, runTest) {
-	const config = loadConfig(dir + '/_config.js');
-	if (
-		config &&
-		(!config.skipIfWindows || process.platform !== 'win32') &&
-		(!config.onlyWindows || process.platform === 'win32') &&
-		(!config.minNodeVersion || config.minNodeVersion <= Number(/^v(\d+)/.exec(process.version)[1]))
-	)
-		runTest(dir, config);
+function getFileNamesAndRemoveOutput(dir) {
+	try {
+		return readdirSync(dir).filter(fileName => {
+			if (fileName === '_actual') {
+				removeSync(join(dir, '_actual'));
+				return false;
+			}
+			if (fileName === '_actual.js') {
+				unlinkSync(join(dir, '_actual.js'));
+				return false;
+			}
+			return true;
+		});
+	} catch (error) {
+		if (error.code === 'ENOTDIR') {
+			throw new Error(
+				`${dir} is not located next to a "_config.js" file but is not a directory or old test output either. Please inspect and consider removing the file.`
+			);
+		}
+		throw error;
+	}
 }
 
-function assertDirectoriesAreEqual(actualDir, expectedDir) {
+exports.getFileNamesAndRemoveOutput = getFileNamesAndRemoveOutput;
+
+function loadConfigAndRunTest(dir, runTest) {
+	const configFile = join(dir, '_config.js');
+	const config = require(configFile);
+	if (!config || !config.description) {
+		throw new Error(`Found invalid config without description: ${configFile}`);
+	}
+	if (
+		(!config.skipIfWindows || platform !== 'win32') &&
+		(!config.onlyWindows || platform === 'win32') &&
+		(!config.minNodeVersion || config.minNodeVersion <= Number(/^v(\d+)/.exec(version)[1]))
+	) {
+		runTest(dir, config);
+	}
+}
+
+exports.assertDirectoriesAreEqual = function assertDirectoriesAreEqual(actualDir, expectedDir) {
 	const actualFiles = fixturify.readSync(actualDir);
 
 	let expectedFiles;
@@ -197,7 +205,7 @@ function assertDirectoriesAreEqual(actualDir, expectedDir) {
 		expectedFiles = [];
 	}
 	assertFilesAreEqual(actualFiles, expectedFiles);
-}
+};
 
 function assertFilesAreEqual(actualFiles, expectedFiles, dirs = []) {
 	Object.keys({ ...actualFiles, ...expectedFiles }).forEach(fileName => {
@@ -214,15 +222,71 @@ function assertFilesAreEqual(actualFiles, expectedFiles, dirs = []) {
 	});
 }
 
-function assertIncludes(actual, expected) {
+exports.assertFilesAreEqual = assertFilesAreEqual;
+
+exports.assertIncludes = function assertIncludes(actual, expected) {
 	try {
 		assert.ok(
 			actual.includes(expected),
-			`${JSON.stringify(actual)}\nincludes\n${JSON.stringify(expected)}`
+			`${JSON.stringify(actual)}\nshould include\n${JSON.stringify(expected)}`
 		);
 	} catch (err) {
 		err.actual = actual;
 		err.expected = expected;
 		throw err;
 	}
+};
+
+exports.assertDoesNotInclude = function assertDoesNotInclude(actual, expected) {
+	try {
+		assert.ok(
+			!actual.includes(expected),
+			`${JSON.stringify(actual)}\nshould not include\n${JSON.stringify(expected)}`
+		);
+	} catch (err) {
+		err.actual = actual;
+		err.expected = expected;
+		throw err;
+	}
+};
+
+// Workaround a race condition in fs.writeFileSync that temporarily creates
+// an empty file for a brief moment which may be read by rollup watch - even
+// if the content being overwritten is identical.
+function atomicWriteFileSync(filePath, contents) {
+	const stagingPath = filePath + '_';
+	writeFileSync(stagingPath, contents);
+	renameSync(stagingPath, filePath);
 }
+
+exports.atomicWriteFileSync = atomicWriteFileSync;
+
+// It appears that on MacOS, it sometimes takes long for the file system to update
+exports.writeAndSync = function writeAndSync(filePath, contents) {
+	const file = openSync(filePath, 'w');
+	writeSync(file, contents);
+	fsyncSync(file);
+	closeSync(file);
+};
+
+// Sometimes, watchers on MacOS do not seem to fire. In those cases, it helps
+// to write the same content again. This function returns a callback to stop
+// further updates.
+function writeAndRetry(filePath, contents) {
+	let retries = 0;
+	let updateRetryTimeout;
+
+	const writeFile = () => {
+		if (retries > 0) {
+			console.error(`RETRIED writeFile (${retries})`);
+		}
+		retries++;
+		atomicWriteFileSync(filePath, contents);
+		updateRetryTimeout = setTimeout(writeFile, 1000);
+	};
+
+	writeFile();
+	return () => clearTimeout(updateRetryTimeout);
+}
+
+exports.writeAndRetry = writeAndRetry;

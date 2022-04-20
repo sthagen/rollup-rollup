@@ -1,23 +1,23 @@
-import MagicString from 'magic-string';
+import type MagicString from 'magic-string';
 import {
 	findFirstOccurrenceOutsideComment,
 	findNonWhiteSpace,
-	NodeRenderOptions,
-	RenderOptions
+	type NodeRenderOptions,
+	type RenderOptions
 } from '../../utils/renderHelpers';
 import { getSystemExportStatement } from '../../utils/systemJsRendering';
 import { treeshakeNode } from '../../utils/treeshakeNode';
 import { InclusionContext } from '../ExecutionContext';
-import ModuleScope from '../scopes/ModuleScope';
-import ExportDefaultVariable from '../variables/ExportDefaultVariable';
+import type ModuleScope from '../scopes/ModuleScope';
+import type ExportDefaultVariable from '../variables/ExportDefaultVariable';
 import ClassDeclaration from './ClassDeclaration';
 import FunctionDeclaration from './FunctionDeclaration';
-import Identifier from './Identifier';
+import type Identifier from './Identifier';
 import * as NodeType from './NodeType';
-import { ExpressionNode, IncludeChildren, NodeBase } from './shared/Node';
+import { type ExpressionNode, type IncludeChildren, NodeBase } from './shared/Node';
 
 // The header ends at the first non-white-space after "default"
-function getDeclarationStart(code: string, start: number) {
+function getDeclarationStart(code: string, start: number): number {
 	return findNonWhiteSpace(code, findFirstOccurrenceOutsideComment(code, 'default', start) + 7);
 }
 
@@ -26,7 +26,7 @@ function getIdInsertPosition(
 	declarationKeyword: string,
 	endMarker: string,
 	start: number
-) {
+): number {
 	const declarationEnd =
 		findFirstOccurrenceOutsideComment(code, declarationKeyword, start) + declarationKeyword.length;
 	code = code.slice(
@@ -116,8 +116,13 @@ export default class ExportDefaultDeclaration extends NodeBase {
 		endMarker: string,
 		needsId: boolean,
 		options: RenderOptions
-	) {
-		const name = this.variable.getName();
+	): void {
+		const {
+			exportNamesByVariable,
+			format,
+			snippets: { getPropertyAccess }
+		} = options;
+		const name = this.variable.getName(getPropertyAccess);
 		// Remove `export default`
 		code.remove(this.start, declarationStart);
 
@@ -128,9 +133,9 @@ export default class ExportDefaultDeclaration extends NodeBase {
 			);
 		}
 		if (
-			options.format === 'system' &&
+			format === 'system' &&
 			this.declaration instanceof ClassDeclaration &&
-			options.exportNamesByVariable.has(this.variable)
+			exportNamesByVariable.has(this.variable)
 		) {
 			code.appendLeft(this.end, ` ${getSystemExportStatement([this.variable], options)};`);
 		}
@@ -139,17 +144,16 @@ export default class ExportDefaultDeclaration extends NodeBase {
 	private renderVariableDeclaration(
 		code: MagicString,
 		declarationStart: number,
-		options: RenderOptions
-	) {
+		{ format, exportNamesByVariable, snippets: { cnst, getPropertyAccess } }: RenderOptions
+	): void {
 		const hasTrailingSemicolon = code.original.charCodeAt(this.end - 1) === 59; /*";"*/
-		const systemExportNames =
-			options.format === 'system' && options.exportNamesByVariable.get(this.variable);
+		const systemExportNames = format === 'system' && exportNamesByVariable.get(this.variable);
 
 		if (systemExportNames) {
 			code.overwrite(
 				this.start,
 				declarationStart,
-				`${options.varOrConst} ${this.variable.getName()} = exports('${systemExportNames[0]}', `
+				`${cnst} ${this.variable.getName(getPropertyAccess)} = exports('${systemExportNames[0]}', `
 			);
 			code.appendRight(
 				hasTrailingSemicolon ? this.end - 1 : this.end,
@@ -159,7 +163,7 @@ export default class ExportDefaultDeclaration extends NodeBase {
 			code.overwrite(
 				this.start,
 				declarationStart,
-				`${options.varOrConst} ${this.variable.getName()} = `
+				`${cnst} ${this.variable.getName(getPropertyAccess)} = `
 			);
 			if (!hasTrailingSemicolon) {
 				code.appendLeft(this.end, ';');
