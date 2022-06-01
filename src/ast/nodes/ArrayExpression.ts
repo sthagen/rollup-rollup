@@ -19,7 +19,6 @@ import { ObjectEntity, type ObjectProperty } from './shared/ObjectEntity';
 export default class ArrayExpression extends NodeBase {
 	declare elements: readonly (ExpressionNode | SpreadElement | null)[];
 	declare type: NodeType.tArrayExpression;
-	protected deoptimized = false;
 	private objectEntity: ObjectEntity | null = null;
 
 	deoptimizePath(path: ObjectPath): void {
@@ -83,8 +82,8 @@ export default class ArrayExpression extends NodeBase {
 		let hasSpread = false;
 		for (let index = 0; index < this.elements.length; index++) {
 			const element = this.elements[index];
-			if (hasSpread || element instanceof SpreadElement) {
-				if (element) {
+			if (element) {
+				if (hasSpread || element instanceof SpreadElement) {
 					hasSpread = true;
 					element.deoptimizePath(UNKNOWN_PATH);
 				}

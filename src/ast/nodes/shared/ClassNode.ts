@@ -26,7 +26,6 @@ export default class ClassNode extends NodeBase implements DeoptimizableEntity {
 	declare body: ClassBody;
 	declare id: Identifier | null;
 	declare superClass: ExpressionNode | null;
-	protected deoptimized = false;
 	private declare classConstructor: MethodDefinition | null;
 	private objectEntity: ObjectEntity | null = null;
 
@@ -40,12 +39,6 @@ export default class ClassNode extends NodeBase implements DeoptimizableEntity {
 
 	deoptimizePath(path: ObjectPath): void {
 		this.getObjectEntity().deoptimizePath(path);
-		if (path.length === 1 && path[0] === UnknownKey) {
-			// A reassignment of UNKNOWN_PATH is considered equivalent to having lost track
-			// which means the constructor needs to be reassigned
-			this.classConstructor?.deoptimizePath(UNKNOWN_PATH);
-			this.superClass?.deoptimizePath(UNKNOWN_PATH);
-		}
 	}
 
 	deoptimizeThisOnEventAtPath(
