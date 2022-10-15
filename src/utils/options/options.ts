@@ -1,12 +1,17 @@
 import type {
 	InputOptions,
+	InputPluginOption,
 	NormalizedGeneratedCodeOptions,
 	NormalizedOutputOptions,
 	NormalizedTreeshakingOptions,
 	OutputOptions,
+	OutputPlugin,
+	OutputPluginOption,
+	Plugin,
 	WarningHandler
 } from '../../rollup/types';
-import { errInvalidOption, error } from '../error';
+import { asyncFlatten } from '../asyncFlatten';
+import { error, errorInvalidOption, errorUnknownOption } from '../error';
 import { printQuotedStringList } from '../printStringList';
 
 export interface GenericConfigObject {
@@ -16,7 +21,7 @@ export interface GenericConfigObject {
 export const defaultOnWarn: WarningHandler = warning => console.warn(warning.message || warning);
 
 export function warnUnknownOptions(
-	passedOptions: GenericConfigObject,
+	passedOptions: object,
 	validOptions: readonly string[],
 	optionType: string,
 	warn: WarningHandler,
@@ -27,14 +32,7 @@ export function warnUnknownOptions(
 		key => !(validOptionSet.has(key) || ignoredKeys.test(key))
 	);
 	if (unknownOptions.length > 0) {
-		warn({
-			code: 'UNKNOWN_OPTION',
-			message: `Unknown ${optionType}: ${unknownOptions.join(', ')}. Allowed options: ${[
-				...validOptionSet
-			]
-				.sort()
-				.join(', ')}`
-		});
+		warn(errorUnknownOption(optionType, unknownOptions, [...validOptionSet].sort()));
 	}
 }
 
@@ -112,7 +110,7 @@ export const objectifyOptionWithPresets =
 				return preset;
 			}
 			error(
-				errInvalidOption(
+				errorInvalidOption(
 					optionName,
 					getHashFromObjectOption(optionName),
 					`valid values are ${additionalValues}${printQuotedStringList(
@@ -138,7 +136,7 @@ export const getOptionWithPreset = <T extends ObjectOptionWithPresets>(
 			return { ...preset, ...(value as Record<string, unknown>) };
 		} else {
 			error(
-				errInvalidOption(
+				errorInvalidOption(
 					`${optionName}.preset`,
 					getHashFromObjectOption(optionName),
 					`valid values are ${printQuotedStringList(Object.keys(presets))}`,
@@ -152,3 +150,9 @@ export const getOptionWithPreset = <T extends ObjectOptionWithPresets>(
 
 const getHashFromObjectOption = (optionName: string): string =>
 	optionName.split('.').join('').toLowerCase();
+
+export const normalizePluginOption: {
+	(plugins: InputPluginOption): Promise<Plugin[]>;
+	(plugins: OutputPluginOption): Promise<OutputPlugin[]>;
+	(plugins: unknown): Promise<any[]>;
+} = async (plugins: any) => (await asyncFlatten([plugins])).filter(Boolean);

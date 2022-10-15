@@ -1,4 +1,5 @@
 import type Chunk from '../Chunk';
+import ExternalChunk from '../ExternalChunk';
 import ExternalModule from '../ExternalModule';
 import type Module from '../Module';
 import type ChildScope from '../ast/scopes/ChildScope';
@@ -15,9 +16,9 @@ import {
 import { getSafeName } from './safeName';
 
 export interface DependenciesToBeDeconflicted {
-	deconflictedDefault: ReadonlySet<ExternalModule>;
-	deconflictedNamespace: ReadonlySet<ExternalModule | Chunk>;
-	dependencies: ReadonlySet<ExternalModule | Chunk>;
+	deconflictedDefault: ReadonlySet<ExternalChunk>;
+	deconflictedNamespace: ReadonlySet<Chunk | ExternalChunk>;
+	dependencies: ReadonlySet<Chunk | ExternalChunk>;
 }
 
 const DECONFLICT_IMPORTED_VARIABLES_BY_FORMAT: {
@@ -29,6 +30,7 @@ const DECONFLICT_IMPORTED_VARIABLES_BY_FORMAT: {
 		preserveModules: boolean,
 		externalLiveBindings: boolean,
 		chunkByModule: ReadonlyMap<Module, Chunk>,
+		externalChunkByModule: ReadonlyMap<ExternalModule, ExternalChunk>,
 		syntheticExports: ReadonlySet<SyntheticNamedExportVariable>
 	) => void;
 } = {
@@ -50,12 +52,13 @@ export function deconflictChunk(
 	preserveModules: boolean,
 	externalLiveBindings: boolean,
 	chunkByModule: ReadonlyMap<Module, Chunk>,
+	externalChunkByModule: ReadonlyMap<ExternalModule, ExternalChunk>,
 	syntheticExports: ReadonlySet<SyntheticNamedExportVariable>,
 	exportNamesByVariable: ReadonlyMap<Variable, readonly string[]>,
 	accessedGlobalsByScope: ReadonlyMap<ChildScope, ReadonlySet<string>>,
 	includedNamespaces: ReadonlySet<Module>
 ): void {
-	const reversedModules = modules.slice().reverse();
+	const reversedModules = [...modules].reverse();
 	for (const module of reversedModules) {
 		module.scope.addUsedOutsideNames(
 			usedNames,
@@ -73,6 +76,7 @@ export function deconflictChunk(
 		preserveModules,
 		externalLiveBindings,
 		chunkByModule,
+		externalChunkByModule,
 		syntheticExports
 	);
 
@@ -89,11 +93,12 @@ function deconflictImportsEsmOrSystem(
 	preserveModules: boolean,
 	_externalLiveBindings: boolean,
 	chunkByModule: ReadonlyMap<Module, Chunk>,
+	externalChunkByModule: ReadonlyMap<ExternalModule, ExternalChunk>,
 	syntheticExports: ReadonlySet<SyntheticNamedExportVariable>
 ) {
 	// This is needed for namespace reexports
 	for (const dependency of dependenciesToBeDeconflicted.dependencies) {
-		if (preserveModules || dependency instanceof ExternalModule) {
+		if (preserveModules || dependency instanceof ExternalChunk) {
 			dependency.variableName = getSafeName(dependency.suggestedVariableName, usedNames);
 		}
 	}
@@ -103,7 +108,10 @@ function deconflictImportsEsmOrSystem(
 		if (variable.isNamespace && (preserveModules || module instanceof ExternalModule)) {
 			variable.setRenderNames(
 				null,
-				(module instanceof ExternalModule ? module : chunkByModule.get(module)!).variableName
+				(module instanceof ExternalModule
+					? externalChunkByModule.get(module)!
+					: chunkByModule.get(module)!
+				).variableName
 			);
 		} else if (module instanceof ExternalModule && name === 'default') {
 			variable.setRenderNames(
@@ -133,42 +141,35 @@ function deconflictImportsOther(
 	interop: GetInterop,
 	preserveModules: boolean,
 	externalLiveBindings: boolean,
-	chunkByModule: ReadonlyMap<Module, Chunk>
+	chunkByModule: ReadonlyMap<Module, Chunk>,
+	externalChunkByModule: ReadonlyMap<ExternalModule, ExternalChunk>
 ): void {
-	for (const chunkOrExternalModule of dependencies) {
-		chunkOrExternalModule.variableName = getSafeName(
-			chunkOrExternalModule.suggestedVariableName,
-			usedNames
-		);
+	for (const chunk of dependencies) {
+		chunk.variableName = getSafeName(chunk.suggestedVariableName, usedNames);
 	}
-	for (const externalModuleOrChunk of deconflictedNamespace) {
-		externalModuleOrChunk.namespaceVariableName = getSafeName(
-			`${externalModuleOrChunk.suggestedVariableName}__namespace`,
+	for (const chunk of deconflictedNamespace) {
+		chunk.namespaceVariableName = getSafeName(
+			`${chunk.suggestedVariableName}__namespace`,
 			usedNames
 		);
 	}
 	for (const externalModule of deconflictedDefault) {
-		if (
+		externalModule.defaultVariableName =
 			deconflictedNamespace.has(externalModule) &&
-			canDefaultBeTakenFromNamespace(String(interop(externalModule.id)), externalLiveBindings)
-		) {
-			externalModule.defaultVariableName = externalModule.namespaceVariableName;
-		} else {
-			externalModule.defaultVariableName = getSafeName(
-				`${externalModule.suggestedVariableName}__default`,
-				usedNames
-			);
-		}
+			canDefaultBeTakenFromNamespace(interop(externalModule.id), externalLiveBindings)
+				? externalModule.namespaceVariableName
+				: getSafeName(`${externalModule.suggestedVariableName}__default`, usedNames);
 	}
 	for (const variable of imports) {
 		const module = variable.module;
 		if (module instanceof ExternalModule) {
+			const chunk = externalChunkByModule.get(module)!;
 			const name = variable.name;
 			if (name === 'default') {
-				const moduleInterop = String(interop(module.id));
+				const moduleInterop = interop(module.id);
 				const variableName = defaultInteropHelpersByInteropType[moduleInterop]
-					? module.defaultVariableName
-					: module.variableName;
+					? chunk.defaultVariableName
+					: chunk.variableName;
 				if (isDefaultAProperty(moduleInterop, externalLiveBindings)) {
 					variable.setRenderNames(variableName, 'default');
 				} else {
@@ -177,13 +178,13 @@ function deconflictImportsOther(
 			} else if (name === '*') {
 				variable.setRenderNames(
 					null,
-					namespaceInteropHelpersByInteropType[String(interop(module.id))]
-						? module.namespaceVariableName
-						: module.variableName
+					namespaceInteropHelpersByInteropType[interop(module.id)]
+						? chunk.namespaceVariableName
+						: chunk.variableName
 				);
 			} else {
 				// if the second parameter is `null`, it uses its "name" for the property name
-				variable.setRenderNames(module.variableName, null);
+				variable.setRenderNames(chunk.variableName, null);
 			}
 		} else {
 			const chunk = chunkByModule.get(module!)!;

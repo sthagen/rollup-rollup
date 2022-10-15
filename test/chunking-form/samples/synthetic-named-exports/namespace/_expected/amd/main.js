@@ -25,7 +25,7 @@ define(['exports'], (function (exports) { 'use strict';
 
 	var synthetic$1 = /*#__PURE__*/_mergeNamespaces({
 		__proto__: null,
-		'default': synthetic,
+		default: synthetic,
 		foo: foo
 	}, [synthetic]);
 
@@ -35,13 +35,11 @@ define(['exports'], (function (exports) { 'use strict';
 	var dep$1 = /*#__PURE__*/_mergeNamespaces({
 		__proto__: null,
 		bar: bar,
-		'default': dep,
+		default: dep,
 		synthetic: synthetic$1,
 		foo: foo
 	}, [synthetic]);
 
 	exports.dep = dep$1;
-
-	Object.defineProperty(exports, '__esModule', { value: true });
 
 }));

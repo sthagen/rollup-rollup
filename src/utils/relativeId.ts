@@ -1,9 +1,9 @@
-import { relative } from '../../browser/path';
+import { relative } from '../../browser/src/path';
 import { basename, dirname, extname, isAbsolute, normalize, resolve } from './path';
 
 export function getAliasName(id: string): string {
 	const base = basename(id);
-	return base.substring(0, base.length - extname(id).length);
+	return base.slice(0, Math.max(0, base.length - extname(id).length));
 }
 
 export default function relativeId(id: string): string {
@@ -33,10 +33,7 @@ export function getImportPath(
 	if (ensureFileName) {
 		if (relativePath === '') return '../' + basename(targetPath);
 		if (UPPER_DIR_REGEX.test(relativePath)) {
-			return relativePath
-				.split('/')
-				.concat(['..', basename(targetPath)])
-				.join('/');
+			return [...relativePath.split('/'), '..', basename(targetPath)].join('/');
 		}
 	}
 	return !relativePath ? '.' : relativePath.startsWith('..') ? relativePath : './' + relativePath;

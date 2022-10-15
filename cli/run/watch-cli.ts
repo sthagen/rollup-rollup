@@ -1,5 +1,5 @@
-import { promises as fs, type FSWatcher } from 'fs';
-import process from 'process';
+import { promises as fs, type FSWatcher } from 'node:fs';
+import process from 'node:process';
 import chokidar from 'chokidar';
 import dateTime from 'date-time';
 import ms from 'pretty-ms';
@@ -11,7 +11,7 @@ import relativeId from '../../src/utils/relativeId';
 import { handleError, stderr } from '../logging';
 import type { BatchWarnings } from './batchWarnings';
 import { getConfigPath } from './getConfigPath';
-import loadAndParseConfigFile from './loadConfigFile';
+import { loadConfigFile } from './loadConfigFile';
 import loadConfigFromCommand from './loadConfigFromCommand';
 import { getResetScreen } from './resetScreen';
 import { printTimings } from './timings';
@@ -53,7 +53,7 @@ export async function watch(command: Record<string, any>): Promise<void> {
 					stderr(`\nReloading updated config...`);
 				}
 				configFileData = newConfigFileData;
-				const { options, warnings } = await loadAndParseConfigFile(configFile, command);
+				const { options, warnings } = await loadConfigFile(configFile, command);
 				if (currentConfigFileRevision !== configFileRevision) {
 					return;
 				}
@@ -61,8 +61,8 @@ export async function watch(command: Record<string, any>): Promise<void> {
 					await watcher.close();
 				}
 				start(options, warnings);
-			} catch (err: any) {
-				handleError(err, true);
+			} catch (error: any) {
+				handleError(error, true);
 			}
 		}
 	}
@@ -71,25 +71,22 @@ export async function watch(command: Record<string, any>): Promise<void> {
 		await loadConfigFromFileAndTrack(configFile);
 	} else {
 		const { options, warnings } = await loadConfigFromCommand(command);
-		start(options, warnings);
+		await start(options, warnings);
 	}
 
-	function start(configs: MergedRollupOptions[], warnings: BatchWarnings): void {
-		try {
-			watcher = rollup.watch(configs as any);
-		} catch (err: any) {
-			return handleError(err);
-		}
+	async function start(configs: MergedRollupOptions[], warnings: BatchWarnings): Promise<void> {
+		watcher = rollup.watch(configs as any);
 
 		watcher.on('event', event => {
 			switch (event.code) {
-				case 'ERROR':
+				case 'ERROR': {
 					warnings.flush();
 					handleError(event.error, true);
 					runWatchHook('onError');
 					break;
+				}
 
-				case 'START':
+				case 'START': {
 					if (!silent) {
 						if (!resetScreen) {
 							resetScreen = getResetScreen(configs, isTTY);
@@ -99,8 +96,9 @@ export async function watch(command: Record<string, any>): Promise<void> {
 					runWatchHook('onStart');
 
 					break;
+				}
 
-				case 'BUNDLE_START':
+				case 'BUNDLE_START': {
 					if (!silent) {
 						let input = event.input;
 						if (typeof input !== 'string') {
@@ -114,8 +112,9 @@ export async function watch(command: Record<string, any>): Promise<void> {
 					}
 					runWatchHook('onBundleStart');
 					break;
+				}
 
-				case 'BUNDLE_END':
+				case 'BUNDLE_END': {
 					warnings.flush();
 					if (!silent)
 						stderr(
@@ -130,12 +129,14 @@ export async function watch(command: Record<string, any>): Promise<void> {
 						printTimings(event.result.getTimings());
 					}
 					break;
+				}
 
-				case 'END':
+				case 'END': {
 					runWatchHook('onEnd');
 					if (!silent && isTTY) {
 						stderr(`\n[${dateTime()}] waiting for changes...`);
 					}
+				}
 			}
 
 			if ('result' in event && event.result) {
@@ -153,6 +154,7 @@ export async function watch(command: Record<string, any>): Promise<void> {
 		if (configWatcher) configWatcher.close();
 
 		if (code) {
+			// eslint-disable-next-line unicorn/no-process-exit
 			process.exit(code);
 		}
 	}

@@ -13,6 +13,7 @@ import type { InclusionContext } from '../ExecutionContext';
 import type ChildScope from '../scopes/ChildScope';
 import type NamespaceVariable from '../variables/NamespaceVariable';
 import type * as NodeType from './NodeType';
+import type ObjectExpression from './ObjectExpression';
 import { type ExpressionNode, type IncludeChildren, NodeBase } from './shared/Node';
 
 interface DynamicImportMechanism {
@@ -20,13 +21,24 @@ interface DynamicImportMechanism {
 	right: string;
 }
 
+// TODO once ImportExpression follows official ESTree specs with "null" as
+//  default, keys.ts should be updated
 export default class ImportExpression extends NodeBase {
+	declare arguments: ObjectExpression[] | undefined;
 	inlineNamespace: NamespaceVariable | null = null;
 	declare source: ExpressionNode;
 	declare type: NodeType.tImportExpression;
 
+	private assertions: string | null | true = null;
 	private mechanism: DynamicImportMechanism | null = null;
+	private namespaceExportName: string | false | undefined = undefined;
 	private resolution: Module | ExternalModule | string | null = null;
+	private resolutionString: string | null = null;
+
+	// Do not bind assertions
+	bind(): void {
+		this.source.bind();
+	}
 
 	hasEffects(): boolean {
 		return true;
@@ -46,10 +58,10 @@ export default class ImportExpression extends NodeBase {
 	}
 
 	render(code: MagicString, options: RenderOptions): void {
+		const {
+			snippets: { _, getDirectReturnFunction, getObject, getPropertyAccess }
+		} = options;
 		if (this.inlineNamespace) {
-			const {
-				snippets: { getDirectReturnFunction, getPropertyAccess }
-			} = options;
 			const [left, right] = getDirectReturnFunction([], {
 				functionReturn: true,
 				lineBreakIndent: null,
@@ -58,38 +70,43 @@ export default class ImportExpression extends NodeBase {
 			code.overwrite(
 				this.start,
 				this.end,
-				`Promise.resolve().then(${left}${this.inlineNamespace.getName(getPropertyAccess)}${right})`,
-				{ contentOnly: true }
+				`Promise.resolve().then(${left}${this.inlineNamespace.getName(getPropertyAccess)}${right})`
 			);
 			return;
 		}
-
 		if (this.mechanism) {
 			code.overwrite(
 				this.start,
 				findFirstOccurrenceOutsideComment(code.original, '(', this.start + 6) + 1,
-				this.mechanism.left,
-				{ contentOnly: true }
+				this.mechanism.left
 			);
-			code.overwrite(this.end - 1, this.end, this.mechanism.right, { contentOnly: true });
+			code.overwrite(this.end - 1, this.end, this.mechanism.right);
 		}
-		this.source.render(code, options);
-	}
-
-	renderFinalResolution(
-		code: MagicString,
-		resolution: string,
-		namespaceExportName: string | false | undefined,
-		{ getDirectReturnFunction }: GenerateCodeSnippets
-	): void {
-		code.overwrite(this.source.start, this.source.end, resolution);
-		if (namespaceExportName) {
-			const [left, right] = getDirectReturnFunction(['n'], {
-				functionReturn: true,
-				lineBreakIndent: null,
-				name: null
-			});
-			code.prependLeft(this.end, `.then(${left}n.${namespaceExportName}${right})`);
+		if (this.resolutionString) {
+			code.overwrite(this.source.start, this.source.end, this.resolutionString);
+			if (this.namespaceExportName) {
+				const [left, right] = getDirectReturnFunction(['n'], {
+					functionReturn: true,
+					lineBreakIndent: null,
+					name: null
+				});
+				code.prependLeft(this.end, `.then(${left}n.${this.namespaceExportName}${right})`);
+			}
+		} else {
+			this.source.render(code, options);
+		}
+		if (this.assertions !== true) {
+			if (this.arguments) {
+				code.overwrite(this.source.end, this.end - 1, '', { contentOnly: true });
+			}
+			if (this.assertions) {
+				code.appendLeft(
+					this.end - 1,
+					`,${_}${getObject([['assert', this.assertions]], {
+						lineBreakIndent: null
+					})}`
+				);
+			}
 		}
 	}
 
@@ -99,11 +116,17 @@ export default class ImportExpression extends NodeBase {
 		options: NormalizedOutputOptions,
 		snippets: GenerateCodeSnippets,
 		pluginDriver: PluginDriver,
-		accessedGlobalsByScope: Map<ChildScope, Set<string>>
+		accessedGlobalsByScope: Map<ChildScope, Set<string>>,
+		resolutionString: string,
+		namespaceExportName: string | false | undefined,
+		assertions: string | null | true
 	): void {
 		const { format } = options;
 		this.inlineNamespace = null;
 		this.resolution = resolution;
+		this.resolutionString = resolutionString;
+		this.namespaceExportName = namespaceExportName;
+		this.assertions = assertions;
 		const accessedGlobals = [...(accessedImportGlobals[format] || [])];
 		let helper: string | null;
 		({ helper, mechanism: this.mechanism } = this.getDynamicImportMechanismAndHelper(
@@ -133,6 +156,7 @@ export default class ImportExpression extends NodeBase {
 		{
 			compact,
 			dynamicImportFunction,
+			dynamicImportInCjs,
 			format,
 			generatedCode: { arrowFunctions },
 			interop
@@ -155,6 +179,12 @@ export default class ImportExpression extends NodeBase {
 		const hasDynamicTarget = !this.resolution || typeof this.resolution === 'string';
 		switch (format) {
 			case 'cjs': {
+				if (
+					dynamicImportInCjs &&
+					(!resolution || typeof resolution === 'string' || resolution instanceof ExternalModule)
+				) {
+					return { helper: null, mechanism: null };
+				}
 				const helper = getInteropHelper(resolution, exportMode, interop);
 				let left = `require(`;
 				let right = `)`;
@@ -212,7 +242,7 @@ export default class ImportExpression extends NodeBase {
 					mechanism: { left, right }
 				};
 			}
-			case 'system':
+			case 'system': {
 				return {
 					helper: null,
 					mechanism: {
@@ -220,7 +250,8 @@ export default class ImportExpression extends NodeBase {
 						right: ')'
 					}
 				};
-			case 'es':
+			}
+			case 'es': {
 				if (dynamicImportFunction) {
 					return {
 						helper: null,
@@ -230,6 +261,7 @@ export default class ImportExpression extends NodeBase {
 						}
 					};
 				}
+			}
 		}
 		return { helper: null, mechanism: null };
 	}
@@ -242,7 +274,7 @@ function getInteropHelper(
 ): string | null {
 	return exportMode === 'external'
 		? namespaceInteropHelpersByInteropType[
-				String(interop(resolution instanceof ExternalModule ? resolution.id : null))
+				interop(resolution instanceof ExternalModule ? resolution.id : null)
 		  ]
 		: exportMode === 'default'
 		? INTEROP_NAMESPACE_DEFAULT_ONLY_VARIABLE

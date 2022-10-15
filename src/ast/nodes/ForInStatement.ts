@@ -4,7 +4,7 @@ import type { HasEffectsContext, InclusionContext } from '../ExecutionContext';
 import BlockScope from '../scopes/BlockScope';
 import type Scope from '../scopes/Scope';
 import { EMPTY_PATH } from '../utils/PathTracker';
-import MemberExpression from './MemberExpression';
+import type MemberExpression from './MemberExpression';
 import type * as NodeType from './NodeType';
 import type VariableDeclaration from './VariableDeclaration';
 import { UNKNOWN_EXPRESSION } from './shared/Expression';
@@ -27,18 +27,16 @@ export default class ForInStatement extends StatementBase {
 	}
 
 	hasEffects(context: HasEffectsContext): boolean {
-		const { deoptimized, left, right } = this;
+		const { body, deoptimized, left, right } = this;
 		if (!deoptimized) this.applyDeoptimizations();
 		if (left.hasEffectsAsAssignmentTarget(context, false) || right.hasEffects(context)) return true;
-		const {
-			brokenFlow,
-			ignore: { breaks, continues }
-		} = context;
-		context.ignore.breaks = true;
-		context.ignore.continues = true;
-		if (this.body.hasEffects(context)) return true;
-		context.ignore.breaks = breaks;
-		context.ignore.continues = continues;
+		const { brokenFlow, ignore } = context;
+		const { breaks, continues } = ignore;
+		ignore.breaks = true;
+		ignore.continues = true;
+		if (body.hasEffects(context)) return true;
+		ignore.breaks = breaks;
+		ignore.continues = continues;
 		context.brokenFlow = brokenFlow;
 		return false;
 	}

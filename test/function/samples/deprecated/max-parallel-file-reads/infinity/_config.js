@@ -1,5 +1,5 @@
-const assert = require('assert');
-const { promises: fs } = require('fs');
+const assert = require('node:assert');
+const { promises: fs } = require('node:fs');
 const { wait } = require('../../../../../utils');
 
 const fsReadFile = fs.readFile;
@@ -25,5 +25,12 @@ module.exports = {
 	after() {
 		fs.readFile = fsReadFile;
 		assert.strictEqual(maxReads, 5, 'Wrong number of parallel file reads: ' + maxReads);
-	}
+	},
+	warnings: [
+		{
+			code: 'DEPRECATED_FEATURE',
+			message:
+				'The "maxParallelFileReads" option is deprecated. Use the "maxParallelFileOps" option instead.'
+		}
+	]
 };

@@ -1,7 +1,8 @@
-import MagicString from 'magic-string';
-import CallExpression from '../ast/nodes/CallExpression';
-import NewExpression from '../ast/nodes/NewExpression';
-import { findFirstOccurrenceOutsideComment, RenderOptions } from './renderHelpers';
+import type MagicString from 'magic-string';
+import type CallExpression from '../ast/nodes/CallExpression';
+import type NewExpression from '../ast/nodes/NewExpression';
+import type { RenderOptions } from './renderHelpers';
+import { findFirstOccurrenceOutsideComment } from './renderHelpers';
 
 export function renderCallArguments(
 	code: MagicString,
@@ -10,8 +11,8 @@ export function renderCallArguments(
 ): void {
 	if (node.arguments.length > 0) {
 		if (node.arguments[node.arguments.length - 1].included) {
-			for (const arg of node.arguments) {
-				arg.render(code, options);
+			for (const argument of node.arguments) {
+				argument.render(code, options);
 			}
 		} else {
 			let lastIncludedIndex = node.arguments.length - 2;

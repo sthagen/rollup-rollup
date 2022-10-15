@@ -1,12 +1,12 @@
-const { unlinkSync, writeFileSync } = require('fs');
-const path = require('path');
+const { unlinkSync, writeFileSync } = require('node:fs');
+const path = require('node:path');
 const { atomicWriteFileSync } = require('../../../../utils');
 
 let mainFile;
 
 module.exports = {
 	description: 'recovers from errors during bundling',
-	command: 'rollup -cw',
+	command: 'rollup -cw --bundleConfigAsCjs',
 	before() {
 		mainFile = path.resolve(__dirname, 'main.js');
 		writeFileSync(mainFile, '<=>');

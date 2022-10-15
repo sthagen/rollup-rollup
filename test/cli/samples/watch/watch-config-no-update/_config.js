@@ -1,5 +1,5 @@
-const { unlinkSync, writeFileSync } = require('fs');
-const path = require('path');
+const { unlinkSync, writeFileSync } = require('node:fs');
+const path = require('node:path');
 const { atomicWriteFileSync } = require('../../../../utils');
 
 let configFile;
@@ -16,7 +16,7 @@ module.exports = {
 	description: 'does not rebuild if the config file is updated without change',
 	command: 'rollup -cw',
 	before() {
-		configFile = path.resolve(__dirname, 'rollup.config.js');
+		configFile = path.resolve(__dirname, 'rollup.config.mjs');
 		writeFileSync(configFile, configContent);
 	},
 	after() {
@@ -31,7 +31,7 @@ module.exports = {
 	},
 	stderr(stderr) {
 		if (
-			!/^rollup v\d+\.\d+\.\d+(-\d+)?\nbundles main.js → _actual[\\/]main.js...\ncreated _actual[\\/]main.js in \d+ms\n$/.test(
+			!/^rollup v\d+\.\d+\.\d+(-\d+)?\nbundles main.js → _actual[/\\]main.js...\ncreated _actual[/\\]main.js in \d+ms\n$/.test(
 				stderr
 			)
 		) {

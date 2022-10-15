@@ -1,4 +1,4 @@
-import type { ChunkDependencies, ChunkExports } from '../../Chunk';
+import type { ChunkDependency, ChunkExports } from '../../Chunk';
 import type { GetInterop } from '../../rollup/types';
 import type { GenerateCodeSnippets } from '../../utils/generateCodeSnippets';
 import {
@@ -10,7 +10,7 @@ import {
 
 export function getExportBlock(
 	exports: ChunkExports,
-	dependencies: ChunkDependencies,
+	dependencies: ChunkDependency[],
 	namedExportsMode: boolean,
 	interop: GetInterop,
 	snippets: GenerateCodeSnippets,
@@ -33,7 +33,7 @@ export function getExportBlock(
 
 	for (const {
 		defaultVariableName,
-		id,
+		importPath,
 		isChunk,
 		name,
 		namedExportsMode: depNamedExportsMode,
@@ -51,7 +51,7 @@ export function getExportBlock(
 						defaultVariableName!,
 						namespaceVariableName!,
 						interop,
-						id,
+						importPath,
 						externalLiveBindings,
 						getPropertyAccess
 					);
@@ -117,7 +117,7 @@ export function getExportBlock(
 
 function getSingleDefaultExport(
 	exports: ChunkExports,
-	dependencies: ChunkDependencies,
+	dependencies: ChunkDependency[],
 	interop: GetInterop,
 	externalLiveBindings: boolean,
 	getPropertyAccess: (name: string) => string
@@ -127,7 +127,7 @@ function getSingleDefaultExport(
 	} else {
 		for (const {
 			defaultVariableName,
-			id,
+			importPath,
 			isChunk,
 			name,
 			namedExportsMode: depNamedExportsMode,
@@ -143,7 +143,7 @@ function getSingleDefaultExport(
 					defaultVariableName!,
 					namespaceVariableName!,
 					interop,
-					id,
+					importPath,
 					externalLiveBindings,
 					getPropertyAccess
 				);
@@ -166,7 +166,7 @@ function getReexportedImportName(
 ) {
 	if (imported === 'default') {
 		if (!isChunk) {
-			const moduleInterop = String(interop(moduleId));
+			const moduleInterop = interop(moduleId);
 			const variableName = defaultInteropHelpersByInteropType[moduleInterop]
 				? defaultVariableName
 				: moduleVariableName;
@@ -180,9 +180,7 @@ function getReexportedImportName(
 	}
 	if (imported === '*') {
 		return (
-			isChunk
-				? !depNamedExportsMode
-				: namespaceInteropHelpersByInteropType[String(interop(moduleId))]
+			isChunk ? !depNamedExportsMode : namespaceInteropHelpersByInteropType[interop(moduleId)]
 		)
 			? namespaceVariableName
 			: moduleVariableName;

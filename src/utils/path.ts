@@ -1,4 +1,4 @@
-const ABSOLUTE_PATH_REGEX = /^(?:\/|(?:[A-Za-z]:)?[\\|/])/;
+const ABSOLUTE_PATH_REGEX = /^(?:\/|(?:[A-Za-z]:)?[/\\|])/;
 const RELATIVE_PATH_REGEX = /^\.?\.(\/|$)/;
 
 export function isAbsolute(path: string): boolean {
@@ -15,4 +15,4 @@ export function normalize(path: string): string {
 	return path.replace(BACKSLASH_REGEX, '/');
 }
 
-export { basename, dirname, extname, relative, resolve } from 'path';
+export { basename, dirname, extname, relative, resolve } from 'node:path';

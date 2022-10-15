@@ -1,19 +1,15 @@
-import { DeoptimizableEntity } from '../DeoptimizableEntity';
-import { HasEffectsContext } from '../ExecutionContext';
+import type { DeoptimizableEntity } from '../DeoptimizableEntity';
+import type { HasEffectsContext } from '../ExecutionContext';
+import type { NodeInteraction } from '../NodeInteractions';
 import {
 	INTERACTION_ACCESSED,
 	INTERACTION_ASSIGNED,
-	INTERACTION_CALLED,
-	NodeInteraction
+	INTERACTION_CALLED
 } from '../NodeInteractions';
-import {
-	LiteralValueOrUnknown,
-	UnknownTruthyValue,
-	UnknownValue
-} from '../nodes/shared/Expression';
+import type { LiteralValueOrUnknown } from '../nodes/shared/Expression';
+import { UnknownValue } from '../nodes/shared/Expression';
 import { getGlobalAtPath } from '../nodes/shared/knownGlobals';
-import type { ObjectPath } from '../utils/PathTracker';
-import { PathTracker } from '../utils/PathTracker';
+import type { ObjectPath, PathTracker } from '../utils/PathTracker';
 import Variable from './Variable';
 
 export default class GlobalVariable extends Variable {
@@ -26,7 +22,8 @@ export default class GlobalVariable extends Variable {
 		_recursionTracker: PathTracker,
 		_origin: DeoptimizableEntity
 	): LiteralValueOrUnknown {
-		return getGlobalAtPath([this.name, ...path]) ? UnknownTruthyValue : UnknownValue;
+		const globalAtPath = getGlobalAtPath([this.name, ...path]);
+		return globalAtPath ? globalAtPath.getLiteralValue() : UnknownValue;
 	}
 
 	hasEffectsOnInteractionAtPath(
@@ -35,14 +32,16 @@ export default class GlobalVariable extends Variable {
 		context: HasEffectsContext
 	): boolean {
 		switch (interaction.type) {
-			case INTERACTION_ACCESSED:
+			case INTERACTION_ACCESSED: {
 				if (path.length === 0) {
 					// Technically, "undefined" is a global variable of sorts
 					return this.name !== 'undefined' && !getGlobalAtPath([this.name]);
 				}
 				return !getGlobalAtPath([this.name, ...path].slice(0, -1));
-			case INTERACTION_ASSIGNED:
+			}
+			case INTERACTION_ASSIGNED: {
 				return true;
+			}
 			case INTERACTION_CALLED: {
 				const globalAtPath = getGlobalAtPath([this.name, ...path]);
 				return !globalAtPath || globalAtPath.hasEffectsWhenCalled(interaction, context);

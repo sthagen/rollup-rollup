@@ -12,6 +12,8 @@ On a `bundle` object, you can call `bundle.generate` multiple times with differe
 
 Once you're finished with the `bundle` object, you should call `bundle.close()`, which will let plugins clean up their external processes or services via the [`closeBundle`](guide/en/#closebundle) hook.
 
+If an error occurs at either stage, it will return a Promise rejected with an Error, which you can identify via their `code` property. Besides `code` and `message`, many errors have additional properties you can use for custom reporting, see [`utils/error.ts`](https://github.com/rollup/rollup/blob/master/src/utils/error.ts) for a complete list of errors and warnings together with their codes and properties.
+
 ```javascript
 import { rollup } from 'rollup';
 
@@ -221,6 +223,8 @@ watcher.on('event', event => {
   //                    bundle object for output generation errors. As with
   //                    "BUNDLE_END", you should call "event.result.close()" if
   //                    present once you are done.
+  // If you return a Promise from your event handler, Rollup will wait until the
+  // Promise is resolved before continuing.
 });
 
 // This will make sure that bundles are properly closed after each run
@@ -230,7 +234,13 @@ watcher.on('event', ({ result }) => {
   }
 });
 
-// stop watching
+// Additionally, you can hook into the following. Again, return a Promise to
+// make Rollup wait at that stage:
+watcher.on('change', (id, { event }) => { /* a file was modified */ })
+watcher.on('restart', () => { /* a new run was triggered */ })
+watcher.on('close', () => { /* the watcher was closed, see below */ })
+
+// to stop watching
 watcher.close();
 ```
 
@@ -260,8 +270,8 @@ See above for details on `inputOptions` and `outputOptions`, or consult the [big
 In order to aid in generating such a config, rollup exposes the helper it uses to load config files in its command line interface via a separate entry-point. This helper receives a resolved `fileName` and optionally an object containing command line parameters:
 
 ```js
-const loadConfigFile = require('rollup/loadConfigFile');
-const path = require('path');
+const { loadConfigFile } = require('rollup/loadConfigFile');
+const path = require('node:path');
 const rollup = require('rollup');
 
 // load the config file next to the current script;

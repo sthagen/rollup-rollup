@@ -3,7 +3,8 @@ import { BLANK } from '../../utils/blank';
 import type { NodeRenderOptions, RenderOptions } from '../../utils/renderHelpers';
 import type { DeoptimizableEntity } from '../DeoptimizableEntity';
 import type { HasEffectsContext } from '../ExecutionContext';
-import { INTERACTION_ACCESSED, NodeInteraction } from '../NodeInteractions';
+import type { NodeInteraction } from '../NodeInteractions';
+import { INTERACTION_ACCESSED } from '../NodeInteractions';
 import {
 	EMPTY_PATH,
 	type ObjectPath,
@@ -89,10 +90,10 @@ export default class BinaryExpression extends NodeBase implements DeoptimizableE
 		const rightValue = this.right.getLiteralValueAtPath(EMPTY_PATH, recursionTracker, origin);
 		if (typeof rightValue === 'symbol') return UnknownValue;
 
-		const operatorFn = binaryOperators[this.operator];
-		if (!operatorFn) return UnknownValue;
+		const operatorFunction = binaryOperators[this.operator];
+		if (!operatorFunction) return UnknownValue;
 
-		return operatorFn(leftValue, rightValue);
+		return operatorFunction(leftValue, rightValue);
 	}
 
 	hasEffects(context: HasEffectsContext): boolean {

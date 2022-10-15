@@ -9,14 +9,18 @@ module.exports = {
 			namespaceToStringTag: true,
 			interop(id) {
 				switch (id) {
-					case 'external-auto':
+					case 'external-auto': {
 						return 'auto';
-					case 'external-default':
+					}
+					case 'external-default': {
 						return 'default';
-					case 'external-defaultOnly':
+					}
+					case 'external-defaultOnly': {
 						return 'defaultOnly';
-					default:
+					}
+					default: {
 						throw new Error(`Unexpected require "${id}"`);
+					}
 				}
 			}
 		}
@@ -25,5 +29,12 @@ module.exports = {
 		require() {
 			return { foo: 42 };
 		}
-	}
+	},
+	warnings: [
+		{
+			code: 'DEPRECATED_FEATURE',
+			message:
+				'The "output.namespaceToStringTag" option is deprecated. Use the "output.generatedCode.symbols" option instead.'
+		}
+	]
 };

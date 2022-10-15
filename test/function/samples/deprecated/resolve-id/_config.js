@@ -1,5 +1,5 @@
-const assert = require('assert');
-const path = require('path');
+const assert = require('node:assert');
+const path = require('node:path');
 const { getObject } = require('../../../../utils');
 
 const sideEffects = [];
@@ -84,6 +84,11 @@ module.exports = {
 					}
 				);
 			}
+		}
+	},
+	warnings(warnings) {
+		for (const warning of warnings) {
+			assert.strictEqual(warning.code, 'DEPRECATED_FEATURE');
 		}
 	}
 };

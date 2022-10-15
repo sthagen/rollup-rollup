@@ -1,5 +1,5 @@
-const { unlinkSync, writeFileSync } = require('fs');
-const path = require('path');
+const { unlinkSync, writeFileSync } = require('node:fs');
+const path = require('node:path');
 const { atomicWriteFileSync } = require('../../../../utils');
 
 let configFile;
@@ -8,7 +8,7 @@ module.exports = {
 	description: 'keeps watching the config file in case the config is changed to an invalid state',
 	command: 'rollup -cw',
 	before() {
-		configFile = path.resolve(__dirname, 'rollup.config.js');
+		configFile = path.resolve(__dirname, 'rollup.config.mjs');
 		writeFileSync(
 			configFile,
 			`

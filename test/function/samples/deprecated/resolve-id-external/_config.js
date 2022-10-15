@@ -1,5 +1,5 @@
-const assert = require('assert');
-const path = require('path');
+const assert = require('node:assert');
+const path = require('node:path');
 const sideEffects = [];
 const { getObject } = require('../../../../utils');
 
@@ -79,7 +79,9 @@ module.exports = {
 	},
 	warnings(warnings) {
 		for (const warning of warnings) {
-			assert.strictEqual(warning.code, 'UNUSED_EXTERNAL_IMPORT');
+			if (warning.code !== 'UNUSED_EXTERNAL_IMPORT' && warning.code !== 'DEPRECATED_FEATURE') {
+				throw new Error(`Unexpected warning code "${warning.code}"`);
+			}
 		}
 	}
 };

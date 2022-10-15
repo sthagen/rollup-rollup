@@ -1,4 +1,4 @@
-import type { Bundle, Bundle as MagicStringBundle } from 'magic-string';
+import type { Bundle as MagicStringBundle } from 'magic-string';
 import type { NormalizedOutputOptions } from '../rollup/types';
 import getCompleteAmdId from './shared/getCompleteAmdId';
 import { getExportBlock, getNamespaceMarkers } from './shared/getExportBlock';
@@ -13,6 +13,7 @@ export default function amd(
 		accessedGlobals,
 		dependencies,
 		exports,
+		hasDefaultExport,
 		hasExports,
 		id,
 		indent: t,
@@ -22,7 +23,7 @@ export default function amd(
 		namedExportsMode,
 		outro,
 		snippets,
-		warn
+		onwarn
 	}: FinaliserOptions,
 	{
 		amd,
@@ -33,33 +34,33 @@ export default function amd(
 		namespaceToStringTag,
 		strict
 	}: NormalizedOutputOptions
-): Bundle {
-	warnOnBuiltins(warn, dependencies);
+): void {
+	warnOnBuiltins(onwarn, dependencies);
 	const deps = dependencies.map(
-		m => `'${updateExtensionForRelativeAmdId(m.id, amd.forceJsExtensionForImports)}'`
+		m => `'${updateExtensionForRelativeAmdId(m.importPath, amd.forceJsExtensionForImports)}'`
 	);
-	const args = dependencies.map(m => m.name);
+	const parameters = dependencies.map(m => m.name);
 	const { n, getNonArrowFunctionIntro, _ } = snippets;
 
 	if (namedExportsMode && hasExports) {
-		args.unshift(`exports`);
+		parameters.unshift(`exports`);
 		deps.unshift(`'exports'`);
 	}
 
 	if (accessedGlobals.has('require')) {
-		args.unshift('require');
+		parameters.unshift('require');
 		deps.unshift(`'require'`);
 	}
 
 	if (accessedGlobals.has('module')) {
-		args.unshift('module');
+		parameters.unshift('module');
 		deps.unshift(`'module'`);
 	}
 
 	const completeAmdId = getCompleteAmdId(amd, id);
-	const params =
+	const defineParameters =
 		(completeAmdId ? `'${completeAmdId}',${_}` : ``) +
-		(deps.length ? `[${deps.join(`,${_}`)}],${_}` : ``);
+		(deps.length > 0 ? `[${deps.join(`,${_}`)}],${_}` : ``);
 	const useStrict = strict ? `${_}'use strict';` : '';
 
 	magicString.prepend(
@@ -86,25 +87,23 @@ export default function amd(
 	);
 	let namespaceMarkers = getNamespaceMarkers(
 		namedExportsMode && hasExports,
-		isEntryFacade && esModule,
+		isEntryFacade && (esModule === true || (esModule === 'if-default-prop' && hasDefaultExport)),
 		isModuleFacade && namespaceToStringTag,
 		snippets
 	);
 	if (namespaceMarkers) {
 		namespaceMarkers = n + n + namespaceMarkers;
 	}
-	magicString.append(`${exportBlock}${namespaceMarkers}${outro}`);
-	return (
-		magicString
-			.indent(t)
-			// factory function should be wrapped by parentheses to avoid lazy parsing,
-			// cf. https://v8.dev/blog/preparser#pife
-			.prepend(
-				`${amd.define}(${params}(${getNonArrowFunctionIntro(args, {
-					isAsync: false,
-					name: null
-				})}{${useStrict}${n}${n}`
-			)
-			.append(`${n}${n}}));`)
-	);
+	magicString
+		.append(`${exportBlock}${namespaceMarkers}${outro}`)
+		.indent(t)
+		// factory function should be wrapped by parentheses to avoid lazy parsing,
+		// cf. https://v8.dev/blog/preparser#pife
+		.prepend(
+			`${amd.define}(${defineParameters}(${getNonArrowFunctionIntro(parameters, {
+				isAsync: false,
+				name: null
+			})}{${useStrict}${n}${n}`
+		)
+		.append(`${n}${n}}));`);
 }

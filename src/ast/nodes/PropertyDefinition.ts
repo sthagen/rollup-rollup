@@ -1,7 +1,10 @@
 import type { DeoptimizableEntity } from '../DeoptimizableEntity';
 import type { HasEffectsContext } from '../ExecutionContext';
-import type { NodeInteractionWithThisArg } from '../NodeInteractions';
-import { NodeInteraction, NodeInteractionCalled } from '../NodeInteractions';
+import type {
+	NodeInteraction,
+	NodeInteractionCalled,
+	NodeInteractionWithThisArgument
+} from '../NodeInteractions';
 import type { ObjectPath, PathTracker } from '../utils/PathTracker';
 import type * as NodeType from './NodeType';
 import type PrivateIdentifier from './PrivateIdentifier';
@@ -25,7 +28,7 @@ export default class PropertyDefinition extends NodeBase {
 	}
 
 	deoptimizeThisOnInteractionAtPath(
-		interaction: NodeInteractionWithThisArg,
+		interaction: NodeInteractionWithThisArgument,
 		path: ObjectPath,
 		recursionTracker: PathTracker
 	): void {

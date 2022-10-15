@@ -1,4 +1,4 @@
-const assert = require('assert');
+const assert = require('node:assert');
 
 module.exports = {
 	description:
@@ -9,5 +9,12 @@ module.exports = {
 	},
 	exports(exports) {
 		return exports().then(result => assert.strictEqual(result, 43));
-	}
+	},
+	warnings: [
+		{
+			code: 'DEPRECATED_FEATURE',
+			message:
+				'The "inlineDynamicImports" option is deprecated. Use the "output.inlineDynamicImports" option instead.'
+		}
+	]
 };

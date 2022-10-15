@@ -1,30 +1,31 @@
 import type MagicString from 'magic-string';
-import { AstContext } from '../../Module';
+import type { AstContext } from '../../Module';
 import type { NormalizedTreeshakingOptions } from '../../rollup/types';
 import { BLANK } from '../../utils/blank';
-import relativeId from '../../utils/relativeId';
+import { errorIllegalImportReassignment, errorMissingExport } from '../../utils/error';
 import type { NodeRenderOptions, RenderOptions } from '../../utils/renderHelpers';
 import type { DeoptimizableEntity } from '../DeoptimizableEntity';
 import type { HasEffectsContext, InclusionContext } from '../ExecutionContext';
-import {
-	INTERACTION_ACCESSED,
-	INTERACTION_ASSIGNED,
+import type {
 	NodeInteraction,
 	NodeInteractionAccessed,
 	NodeInteractionAssigned,
 	NodeInteractionCalled,
-	NodeInteractionWithThisArg
+	NodeInteractionWithThisArgument
 } from '../NodeInteractions';
+import { INTERACTION_ACCESSED, INTERACTION_ASSIGNED } from '../NodeInteractions';
 import {
 	EMPTY_PATH,
 	type ObjectPath,
 	type ObjectPathKey,
 	type PathTracker,
 	SHARED_RECURSION_TRACKER,
+	SymbolToStringTag,
 	UNKNOWN_PATH,
 	UnknownKey,
 	UnknownNonAccessorKey
 } from '../utils/PathTracker';
+import { UNDEFINED_EXPRESSION } from '../values';
 import ExternalVariable from '../variables/ExternalVariable';
 import type NamespaceVariable from '../variables/NamespaceVariable';
 import type Variable from '../variables/Variable';
@@ -101,7 +102,7 @@ export default class MemberExpression extends NodeBase implements DeoptimizableE
 	private assignmentDeoptimized = false;
 	private bound = false;
 	private expressionsToBeDeoptimized: DeoptimizableEntity[] = [];
-	private replacement: string | null = null;
+	private isUndefined = false;
 
 	bind(): void {
 		this.bound = true;
@@ -115,8 +116,8 @@ export default class MemberExpression extends NodeBase implements DeoptimizableE
 			);
 			if (!resolvedVariable) {
 				super.bind();
-			} else if (typeof resolvedVariable === 'string') {
-				this.replacement = resolvedVariable;
+			} else if (resolvedVariable === 'undefined') {
+				this.isUndefined = true;
 			} else {
 				this.variable = resolvedVariable;
 				this.scope.addNamespaceMemberAccess(getStringFromPath(path!), resolvedVariable);
@@ -140,25 +141,23 @@ export default class MemberExpression extends NodeBase implements DeoptimizableE
 		if (path.length === 0) this.disallowNamespaceReassignment();
 		if (this.variable) {
 			this.variable.deoptimizePath(path);
-		} else if (!this.replacement) {
-			if (path.length < MAX_PATH_DEPTH) {
-				const propertyKey = this.getPropertyKey();
-				this.object.deoptimizePath([
-					propertyKey === UnknownKey ? UnknownNonAccessorKey : propertyKey,
-					...path
-				]);
-			}
+		} else if (!this.isUndefined && path.length < MAX_PATH_DEPTH) {
+			const propertyKey = this.getPropertyKey();
+			this.object.deoptimizePath([
+				propertyKey === UnknownKey ? UnknownNonAccessorKey : propertyKey,
+				...path
+			]);
 		}
 	}
 
 	deoptimizeThisOnInteractionAtPath(
-		interaction: NodeInteractionWithThisArg,
+		interaction: NodeInteractionWithThisArgument,
 		path: ObjectPath,
 		recursionTracker: PathTracker
 	): void {
 		if (this.variable) {
 			this.variable.deoptimizeThisOnInteractionAtPath(interaction, path, recursionTracker);
-		} else if (!this.replacement) {
+		} else if (!this.isUndefined) {
 			if (path.length < MAX_PATH_DEPTH) {
 				this.object.deoptimizeThisOnInteractionAtPath(
 					interaction,
@@ -179,8 +178,8 @@ export default class MemberExpression extends NodeBase implements DeoptimizableE
 		if (this.variable) {
 			return this.variable.getLiteralValueAtPath(path, recursionTracker, origin);
 		}
-		if (this.replacement) {
-			return UnknownValue;
+		if (this.isUndefined) {
+			return undefined;
 		}
 		this.expressionsToBeDeoptimized.push(origin);
 		if (path.length < MAX_PATH_DEPTH) {
@@ -207,8 +206,8 @@ export default class MemberExpression extends NodeBase implements DeoptimizableE
 				origin
 			);
 		}
-		if (this.replacement) {
-			return UNKNOWN_EXPRESSION;
+		if (this.isUndefined) {
+			return UNDEFINED_EXPRESSION;
 		}
 		this.expressionsToBeDeoptimized.push(origin);
 		if (path.length < MAX_PATH_DEPTH) {
@@ -250,7 +249,7 @@ export default class MemberExpression extends NodeBase implements DeoptimizableE
 		if (this.variable) {
 			return this.variable.hasEffectsOnInteractionAtPath(path, interaction, context);
 		}
-		if (this.replacement) {
+		if (this.isUndefined) {
 			return true;
 		}
 		if (path.length < MAX_PATH_DEPTH) {
@@ -283,12 +282,12 @@ export default class MemberExpression extends NodeBase implements DeoptimizableE
 
 	includeCallArguments(
 		context: InclusionContext,
-		args: readonly (ExpressionEntity | SpreadElement)[]
+		parameters: readonly (ExpressionEntity | SpreadElement)[]
 	): void {
 		if (this.variable) {
-			this.variable.includeCallArguments(context, args);
+			this.variable.includeCallArguments(context, parameters);
 		} else {
-			super.includeCallArguments(context, args);
+			super.includeCallArguments(context, parameters);
 		}
 	}
 
@@ -306,11 +305,11 @@ export default class MemberExpression extends NodeBase implements DeoptimizableE
 			renderedSurroundingElement
 		}: NodeRenderOptions = BLANK
 	): void {
-		if (this.variable || this.replacement) {
+		if (this.variable || this.isUndefined) {
 			const {
 				snippets: { getPropertyAccess }
 			} = options;
-			let replacement = this.variable ? this.variable.getName(getPropertyAccess) : this.replacement;
+			let replacement = this.variable ? this.variable.getName(getPropertyAccess) : 'undefined';
 			if (renderedParentType && isCalleeOfRenderedParent) replacement = '0, ' + replacement;
 			code.overwrite(this.start, this.end, replacement!, {
 				contentOnly: true,
@@ -341,7 +340,7 @@ export default class MemberExpression extends NodeBase implements DeoptimizableE
 			// Namespaces are not bound and should not be deoptimized
 			this.bound &&
 			propertyReadSideEffects &&
-			!(this.variable || this.replacement)
+			!(this.variable || this.isUndefined)
 		) {
 			const propertyKey = this.getPropertyKey();
 			this.object.deoptimizeThisOnInteractionAtPath(
@@ -361,7 +360,7 @@ export default class MemberExpression extends NodeBase implements DeoptimizableE
 			// Namespaces are not bound and should not be deoptimized
 			this.bound &&
 			propertyReadSideEffects &&
-			!(this.variable || this.replacement)
+			!(this.variable || this.isUndefined)
 		) {
 			this.object.deoptimizeThisOnInteractionAtPath(
 				this.assignmentInteraction,
@@ -380,10 +379,7 @@ export default class MemberExpression extends NodeBase implements DeoptimizableE
 					this.context.includeVariableInModule(this.variable);
 				}
 				this.context.warn(
-					{
-						code: 'ILLEGAL_NAMESPACE_REASSIGNMENT',
-						message: `Illegal reassignment to import '${this.object.name}'`
-					},
+					errorIllegalImportReassignment(this.object.name, this.context.module.id),
 					this.start
 				);
 			}
@@ -394,7 +390,12 @@ export default class MemberExpression extends NodeBase implements DeoptimizableE
 		if (this.propertyKey === null) {
 			this.propertyKey = UnknownKey;
 			const value = this.property.getLiteralValueAtPath(EMPTY_PATH, SHARED_RECURSION_TRACKER, this);
-			return (this.propertyKey = typeof value === 'symbol' ? UnknownKey : String(value));
+			return (this.propertyKey =
+				value === SymbolToStringTag
+					? value
+					: typeof value === 'symbol'
+					? UnknownKey
+					: String(value));
 		}
 		return this.propertyKey;
 	}
@@ -403,7 +404,7 @@ export default class MemberExpression extends NodeBase implements DeoptimizableE
 		const { propertyReadSideEffects } = this.context.options
 			.treeshake as NormalizedTreeshakingOptions;
 		return (
-			!(this.variable || this.replacement) &&
+			!(this.variable || this.isUndefined) &&
 			propertyReadSideEffects &&
 			(propertyReadSideEffects === 'always' ||
 				this.object.hasEffectsOnInteractionAtPath(
@@ -433,24 +434,14 @@ function resolveNamespaceVariables(
 	baseVariable: Variable,
 	path: PathWithPositions,
 	astContext: AstContext
-): Variable | string | null {
+): Variable | 'undefined' | null {
 	if (path.length === 0) return baseVariable;
 	if (!baseVariable.isNamespace || baseVariable instanceof ExternalVariable) return null;
 	const exportName = path[0].key;
 	const variable = (baseVariable as NamespaceVariable).context.traceExport(exportName);
 	if (!variable) {
 		const fileName = (baseVariable as NamespaceVariable).context.fileName;
-		astContext.warn(
-			{
-				code: 'MISSING_EXPORT',
-				exporter: relativeId(fileName),
-				importer: relativeId(astContext.fileName),
-				message: `'${exportName}' is not exported by '${relativeId(fileName)}'`,
-				missing: exportName,
-				url: `https://rollupjs.org/guide/en/#error-name-is-not-exported-by-module`
-			},
-			path[0].pos
-		);
+		astContext.warn(errorMissingExport(exportName, astContext.module.id, fileName), path[0].pos);
 		return 'undefined';
 	}
 	return resolveNamespaceVariables(variable, path.slice(1), astContext);

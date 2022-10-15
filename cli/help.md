@@ -29,25 +29,29 @@ Basic options:
 --chunkFileNames <pattern>  Name pattern for emitted secondary chunks
 --compact                   Minify wrapper code
 --context <variable>        Specify top-level `this` value
+--no-dynamicImportInCjs     Write external dynamic CommonJS imports as require
 --entryFileNames <pattern>  Name pattern for emitted entry chunks
 --environment <values>      Settings passed to config file (see example)
 --no-esModule               Do not add __esModule property
 --exports <mode>            Specify export mode (auto, default, named, none)
 --extend                    Extend global variable defined by --name
 --no-externalLiveBindings   Do not generate code to support live bindings
+--no-externalImportAssertions Omit import assertions in "es" output
 --failAfterWarnings         Exit with an error if the build produced warnings
 --footer <text>             Code to insert at end of bundle (outside wrapper)
 --no-freeze                 Do not freeze namespace objects
+--generatedCode <preset>    Which code features to use (es5/es2015)
 --no-hoistTransitiveImports Do not hoist transitive imports into entry chunks
 --no-indent                 Don't indent result
 --no-interop                Do not include interop block
 --inlineDynamicImports      Create single bundle when using dynamic imports
 --intro <text>              Code to insert at top of bundle (inside wrapper)
+--no-makeAbsoluteExternalsRelative Prevent normalization of external imports
+--maxParallelFileOps <value> How many files to read in parallel
 --minifyInternalExports     Force or disable minification of internal exports
---namespaceToStringTag      Create proper `.toString` methods for namespaces
 --noConflict                Generate a noConflict method for UMD globals
 --outro <text>              Code to insert at end of bundle (inside wrapper)
---preferConst               Use `const` instead of `var` for exports
+--perf                      Display performance timings
 --no-preserveEntrySignatures Avoid facade chunks for entry points
 --preserveModules           Preserve module structure
 --preserveModulesRoot       Put preserved modules under this path at root level
@@ -62,11 +66,11 @@ Basic options:
 --no-stdin                  Do not read "-" from stdin
 --no-strict                 Don't emit `"use strict";` in the generated modules
 --strictDeprecations        Throw errors for deprecated features
---systemNullSetters         Replace empty SystemJS setters with `null`
+--no-systemNullSetters      Do not replace empty SystemJS setters with `null`
 --no-treeshake              Disable tree-shaking optimisations
 --no-treeshake.annotations  Ignore pure call annotations
---no-treeshake.moduleSideEffects Assume modules have no side-effects
---no-treeshake.propertyReadSideEffects Ignore property access side-effects
+--no-treeshake.moduleSideEffects Assume modules have no side effects
+--no-treeshake.propertyReadSideEffects Ignore property access side effects
 --no-treeshake.tryCatchDeoptimization Do not turn off try-catch-tree-shaking
 --no-treeshake.unknownGlobalSideEffects Assume unknown globals do not throw
 --waitForBundleInput        Wait for bundle input files

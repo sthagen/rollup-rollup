@@ -1,4 +1,4 @@
-import process from 'process';
+import process from 'node:process';
 import type { MergedRollupOptions } from '../../src/rollup/types';
 import { mergeOptions } from '../../src/utils/options/mergeOptions';
 import batchWarnings, { type BatchWarnings } from './batchWarnings';
@@ -13,7 +13,7 @@ export default async function loadConfigFromCommand(command: Record<string, unkn
 	if (!command.input && (command.stdin || !process.stdin.isTTY)) {
 		command.input = stdinName;
 	}
-	const options = mergeOptions({ input: [] }, command, warnings.add);
+	const options = await mergeOptions({ input: [] }, command, warnings.add);
 	await addCommandPluginsToInputOptions(options, command);
 	return { options: [options], warnings };
 }

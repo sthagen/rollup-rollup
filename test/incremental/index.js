@@ -1,4 +1,4 @@
-const assert = require('assert');
+const assert = require('node:assert');
 const acorn = require('acorn');
 const rollup = require('../../dist/rollup');
 const { executeBundle, getObject } = require('../utils.js');
@@ -154,6 +154,7 @@ describe('incremental', () => {
 		let cache;
 		modules.foo = `import p from 'external'; export default p;`;
 
+		// eslint-disable-next-line unicorn/consistent-function-scoping
 		const require = id => id === 'external' && 43;
 
 		return rollup
@@ -194,9 +195,9 @@ describe('incremental', () => {
 			})
 			.then(bundle => {
 				const asts = {};
-				bundle.cache.modules.forEach(module => {
+				for (const module of bundle.cache.modules) {
 					asts[module.id] = module.ast;
-				});
+				}
 
 				assert.deepEqual(
 					asts.entry,
@@ -226,7 +227,7 @@ describe('incremental', () => {
 						plugins: [plugin],
 						cache
 					})
-					.catch(err => {
+					.catch(error => {
 						return cache;
 					});
 			})
@@ -267,6 +268,7 @@ describe('incremental', () => {
 				assert.deepEqual(bundle.cache.modules[1].resolvedIds, {
 					foo: {
 						id: 'foo',
+						assertions: {},
 						external: false,
 						meta: {},
 						moduleSideEffects: true,
@@ -274,6 +276,7 @@ describe('incremental', () => {
 					},
 					external: {
 						id: 'external',
+						assertions: {},
 						external: true,
 						meta: {},
 						moduleSideEffects: true,
@@ -355,11 +358,12 @@ describe('incremental', () => {
 					syntheticNamedExports: false
 				});
 				switch (id) {
-					case 'foo':
+					case 'foo': {
 						assert.deepStrictEqual(meta, { transform: { calls: 1, id } });
 						assert.deepStrictEqual(resolvedSources, {
 							__proto__: null,
 							bar: {
+								assertions: {},
 								external: false,
 								id: 'bar',
 								meta: {},
@@ -368,16 +372,19 @@ describe('incremental', () => {
 							}
 						});
 						// we return promises to ensure they are awaited
-						return Promise.resolve(false);
-					case 'bar':
+						return false;
+					}
+					case 'bar': {
 						assert.deepStrictEqual(meta, { transform: { calls: 2, id } });
 						assert.deepStrictEqual(resolvedSources, { __proto__: null });
-						return Promise.resolve(false);
-					case 'entry':
+						return false;
+					}
+					case 'entry': {
 						assert.deepStrictEqual(meta, { transform: { calls: 0, id } });
 						assert.deepStrictEqual(resolvedSources, {
 							__proto__: null,
 							foo: {
+								assertions: {},
 								external: false,
 								id: 'foo',
 								meta: {},
@@ -385,9 +392,11 @@ describe('incremental', () => {
 								syntheticNamedExports: false
 							}
 						});
-						return Promise.resolve(true);
-					default:
+						return true;
+					}
+					default: {
 						throw new Error(`Unexpected id ${id}.`);
+					}
 				}
 			},
 			transform: (code, id) => {

@@ -1,44 +1,40 @@
-import type { ChunkDependencies } from '../../Chunk';
+import type { ChunkDependency } from '../../Chunk';
 import type { RollupWarning } from '../../rollup/types';
-import { printQuotedStringList } from '../../utils/printStringList';
+import { errorMissingNodeBuiltins } from '../../utils/error';
 
 const builtins = {
-	assert: true,
-	buffer: true,
-	console: true,
-	constants: true,
-	domain: true,
-	events: true,
-	http: true,
-	https: true,
-	os: true,
-	path: true,
-	process: true,
-	punycode: true,
-	querystring: true,
-	stream: true,
-	string_decoder: true,
-	timers: true,
-	tty: true,
-	url: true,
-	util: true,
-	vm: true,
-	zlib: true
+	assert: 1,
+	buffer: 1,
+	console: 1,
+	constants: 1,
+	domain: 1,
+	events: 1,
+	http: 1,
+	https: 1,
+	os: 1,
+	path: 1,
+	process: 1,
+	punycode: 1,
+	querystring: 1,
+	stream: 1,
+	string_decoder: 1,
+	timers: 1,
+	tty: 1,
+	url: 1,
+	util: 1,
+	vm: 1,
+	zlib: 1
 };
 
 export default function warnOnBuiltins(
 	warn: (warning: RollupWarning) => void,
-	dependencies: ChunkDependencies
+	dependencies: ChunkDependency[]
 ): void {
-	const externalBuiltins = dependencies.map(({ id }) => id).filter(id => id in builtins);
+	const externalBuiltins = dependencies
+		.map(({ importPath }) => importPath)
+		.filter(importPath => importPath in builtins || importPath.startsWith('node:'));
 
-	if (!externalBuiltins.length) return;
+	if (externalBuiltins.length === 0) return;
 
-	warn({
-		code: 'MISSING_NODE_BUILTINS',
-		message: `Creating a browser bundle that depends on Node.js built-in modules (${printQuotedStringList(
-			externalBuiltins
-		)}). You might need to include https://github.com/FredKSchott/rollup-plugin-polyfill-node`,
-		modules: externalBuiltins
-	});
+	warn(errorMissingNodeBuiltins(externalBuiltins));
 }

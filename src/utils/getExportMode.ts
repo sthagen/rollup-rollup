@@ -1,16 +1,10 @@
 import type Chunk from '../Chunk';
 import type { NormalizedOutputOptions, WarningHandler } from '../rollup/types';
-import {
-	errIncompatibleExportOptionValue,
-	errMixedExport,
-	error,
-	errPreferNamedExports
-} from './error';
+import { error, errorIncompatibleExportOptionValue, errorMixedExport } from './error';
 
 export default function getExportMode(
 	chunk: Chunk,
 	{ exports: exportMode, name, format }: NormalizedOutputOptions,
-	unsetOptions: ReadonlySet<string>,
 	facadeModuleId: string,
 	warn: WarningHandler
 ): 'default' | 'named' | 'none' {
@@ -18,23 +12,20 @@ export default function getExportMode(
 
 	if (exportMode === 'default') {
 		if (exportKeys.length !== 1 || exportKeys[0] !== 'default') {
-			return error(errIncompatibleExportOptionValue('default', exportKeys, facadeModuleId));
+			return error(errorIncompatibleExportOptionValue('default', exportKeys, facadeModuleId));
 		}
-	} else if (exportMode === 'none' && exportKeys.length) {
-		return error(errIncompatibleExportOptionValue('none', exportKeys, facadeModuleId));
+	} else if (exportMode === 'none' && exportKeys.length > 0) {
+		return error(errorIncompatibleExportOptionValue('none', exportKeys, facadeModuleId));
 	}
 
 	if (exportMode === 'auto') {
 		if (exportKeys.length === 0) {
 			exportMode = 'none';
 		} else if (exportKeys.length === 1 && exportKeys[0] === 'default') {
-			if (format === 'cjs' && unsetOptions.has('exports')) {
-				warn(errPreferNamedExports(facadeModuleId));
-			}
 			exportMode = 'default';
 		} else {
 			if (format !== 'es' && format !== 'system' && exportKeys.includes('default')) {
-				warn(errMixedExport(facadeModuleId, name));
+				warn(errorMixedExport(facadeModuleId, name));
 			}
 			exportMode = 'named';
 		}

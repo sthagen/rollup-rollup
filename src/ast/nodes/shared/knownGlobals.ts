@@ -1,13 +1,17 @@
 /* eslint sort-keys: "off" */
 
-import { HasEffectsContext } from '../../ExecutionContext';
-import { NODE_INTERACTION_UNKNOWN_ASSIGNMENT, NodeInteractionCalled } from '../../NodeInteractions';
+import type { HasEffectsContext } from '../../ExecutionContext';
+import type { NodeInteractionCalled } from '../../NodeInteractions';
+import { NODE_INTERACTION_UNKNOWN_ASSIGNMENT } from '../../NodeInteractions';
 import type { ObjectPath } from '../../utils/PathTracker';
-import { UNKNOWN_NON_ACCESSOR_PATH } from '../../utils/PathTracker';
+import { SymbolToStringTag, UNKNOWN_NON_ACCESSOR_PATH } from '../../utils/PathTracker';
+import type { LiteralValueOrUnknown } from './Expression';
+import { UnknownTruthyValue } from './Expression';
 
 const ValueProperties = Symbol('Value Properties');
 
 interface ValueDescription {
+	getLiteralValue(): LiteralValueOrUnknown;
 	hasEffectsWhenCalled(interaction: NodeInteractionCalled, context: HasEffectsContext): boolean;
 }
 
@@ -17,16 +21,18 @@ interface GlobalDescription {
 	__proto__: null;
 }
 
+const getTruthyLiteralValue = (): LiteralValueOrUnknown => UnknownTruthyValue;
+const returnFalse = () => false;
+const returnTrue = () => true;
+
 const PURE: ValueDescription = {
-	hasEffectsWhenCalled() {
-		return false;
-	}
+	getLiteralValue: getTruthyLiteralValue,
+	hasEffectsWhenCalled: returnFalse
 };
 
 const IMPURE: ValueDescription = {
-	hasEffectsWhenCalled() {
-		return true;
-	}
+	getLiteralValue: getTruthyLiteralValue,
+	hasEffectsWhenCalled: returnTrue
 };
 
 // We use shortened variables to reduce file size here
@@ -46,9 +52,10 @@ const PF: GlobalDescription = {
 const MUTATES_ARG_WITHOUT_ACCESSOR: GlobalDescription = {
 	__proto__: null,
 	[ValueProperties]: {
+		getLiteralValue: getTruthyLiteralValue,
 		hasEffectsWhenCalled({ args }, context) {
 			return (
-				!args.length ||
+				args.length === 0 ||
 				args[0].hasEffectsOnInteractionAtPath(
 					UNKNOWN_NON_ACCESSOR_PATH,
 					NODE_INTERACTION_UNKNOWN_ASSIGNMENT,
@@ -253,7 +260,16 @@ const knownGlobals: GlobalDescription = {
 		[ValueProperties]: PURE,
 		for: PF,
 		keyFor: PF,
-		prototype: O
+		prototype: O,
+		toStringTag: {
+			__proto__: null,
+			[ValueProperties]: {
+				getLiteralValue() {
+					return SymbolToStringTag;
+				},
+				hasEffectsWhenCalled: returnTrue
+			}
+		}
 	},
 	SyntaxError: PC,
 	toLocaleString: O,

@@ -1,11 +1,13 @@
 import type MagicString from 'magic-string';
 import type { NormalizedTreeshakingOptions } from '../../rollup/types';
 import { BLANK } from '../../utils/blank';
+import { errorCannotCallNamespace, errorEval } from '../../utils/error';
 import { renderCallArguments } from '../../utils/renderCallArguments';
 import { type NodeRenderOptions, type RenderOptions } from '../../utils/renderHelpers';
 import type { DeoptimizableEntity } from '../DeoptimizableEntity';
 import type { HasEffectsContext, InclusionContext } from '../ExecutionContext';
-import { INTERACTION_CALLED, NodeInteractionWithThisArg } from '../NodeInteractions';
+import type { NodeInteractionWithThisArgument } from '../NodeInteractions';
+import { INTERACTION_CALLED } from '../NodeInteractions';
 import {
 	EMPTY_PATH,
 	type PathTracker,
@@ -33,24 +35,11 @@ export default class CallExpression extends CallExpressionBase implements Deopti
 			const variable = this.scope.findVariable(this.callee.name);
 
 			if (variable.isNamespace) {
-				this.context.warn(
-					{
-						code: 'CANNOT_CALL_NAMESPACE',
-						message: `Cannot call a namespace ('${this.callee.name}')`
-					},
-					this.start
-				);
+				this.context.warn(errorCannotCallNamespace(this.callee.name), this.start);
 			}
 
 			if (this.callee.name === 'eval') {
-				this.context.warn(
-					{
-						code: 'EVAL',
-						message: `Use of eval is strongly discouraged, as it poses security risks and may cause issues with minification`,
-						url: 'https://rollupjs.org/guide/en/#avoiding-eval'
-					},
-					this.start
-				);
+				this.context.warn(errorEval(this.context.module.id), this.start);
 			}
 		}
 		this.interaction = {
@@ -117,7 +106,7 @@ export default class CallExpression extends CallExpressionBase implements Deopti
 		this.deoptimized = true;
 		if (this.interaction.thisArg) {
 			this.callee.deoptimizeThisOnInteractionAtPath(
-				this.interaction as NodeInteractionWithThisArg,
+				this.interaction as NodeInteractionWithThisArgument,
 				EMPTY_PATH,
 				SHARED_RECURSION_TRACKER
 			);

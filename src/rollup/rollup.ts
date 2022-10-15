@@ -3,21 +3,27 @@ import Bundle from '../Bundle';
 import Graph from '../Graph';
 import type { PluginDriver } from '../utils/PluginDriver';
 import { getSortedValidatedPlugins } from '../utils/PluginDriver';
-import { ensureArray } from '../utils/ensureArray';
-import { errAlreadyClosed, errCannotEmitFromOptionsHook, error } from '../utils/error';
+import {
+	error,
+	errorAlreadyClosed,
+	errorCannotEmitFromOptionsHook,
+	// eslint-disable-next-line unicorn/prevent-abbreviations
+	errorMissingFileOrDirOption
+} from '../utils/error';
 import { promises as fs } from '../utils/fs';
 import { catchUnfinishedHookActions } from '../utils/hookActions';
 import { normalizeInputOptions } from '../utils/options/normalizeInputOptions';
 import { normalizeOutputOptions } from '../utils/options/normalizeOutputOptions';
-import type { GenericConfigObject } from '../utils/options/options';
-import { basename, dirname, resolve } from '../utils/path';
+import { normalizePluginOption } from '../utils/options/options';
+import { dirname, resolve } from '../utils/path';
 import { ANONYMOUS_OUTPUT_PLUGIN_PREFIX, ANONYMOUS_PLUGIN_PREFIX } from '../utils/pluginUtils';
-import { SOURCEMAPPING_URL } from '../utils/sourceMappingURL';
 import { getTimings, initialiseTimers, timeEnd, timeStart } from '../utils/timers';
 import type {
+	InputOptions,
 	NormalizedInputOptions,
 	NormalizedOutputOptions,
 	OutputAsset,
+	OutputBundle,
 	OutputChunk,
 	OutputOptions,
 	Plugin,
@@ -26,14 +32,13 @@ import type {
 	RollupOutput,
 	RollupWatcher
 } from './types';
-import { OutputBundle } from './types';
 
-export default function rollup(rawInputOptions: GenericConfigObject): Promise<RollupBuild> {
+export default function rollup(rawInputOptions: RollupOptions): Promise<RollupBuild> {
 	return rollupInternal(rawInputOptions, null);
 }
 
 export async function rollupInternal(
-	rawInputOptions: GenericConfigObject,
+	rawInputOptions: RollupOptions,
 	watcher: RollupWatcher | null
 ): Promise<RollupBuild> {
 	const { options: inputOptions, unsetOptions: unsetInputOptions } = await getInputOptions(
@@ -53,16 +58,18 @@ export async function rollupInternal(
 
 	await catchUnfinishedHookActions(graph.pluginDriver, async () => {
 		try {
+			timeStart('initialize', 2);
 			await graph.pluginDriver.hookParallel('buildStart', [inputOptions]);
+			timeEnd('initialize', 2);
 			await graph.build();
-		} catch (err: any) {
+		} catch (error_: any) {
 			const watchFiles = Object.keys(graph.watchFiles);
 			if (watchFiles.length > 0) {
-				err.watchFiles = watchFiles;
+				error_.watchFiles = watchFiles;
 			}
-			await graph.pluginDriver.hookParallel('buildEnd', [err]);
+			await graph.pluginDriver.hookParallel('buildEnd', [error_]);
 			await graph.pluginDriver.hookParallel('closeBundle', []);
-			throw err;
+			throw error_;
 		}
 		await graph.pluginDriver.hookParallel('buildEnd', []);
 	});
@@ -80,27 +87,15 @@ export async function rollupInternal(
 		},
 		closed: false,
 		async generate(rawOutputOptions: OutputOptions) {
-			if (result.closed) return error(errAlreadyClosed());
+			if (result.closed) return error(errorAlreadyClosed());
 
-			return handleGenerateWrite(
-				false,
-				inputOptions,
-				unsetInputOptions,
-				rawOutputOptions as GenericConfigObject,
-				graph
-			);
+			return handleGenerateWrite(false, inputOptions, unsetInputOptions, rawOutputOptions, graph);
 		},
 		watchFiles: Object.keys(graph.watchFiles),
 		async write(rawOutputOptions: OutputOptions) {
-			if (result.closed) return error(errAlreadyClosed());
+			if (result.closed) return error(errorAlreadyClosed());
 
-			return handleGenerateWrite(
-				true,
-				inputOptions,
-				unsetInputOptions,
-				rawOutputOptions as GenericConfigObject,
-				graph
-			);
+			return handleGenerateWrite(true, inputOptions, unsetInputOptions, rawOutputOptions, graph);
 		}
 	};
 	if (inputOptions.perf) result.getTimings = getTimings;
@@ -108,7 +103,7 @@ export async function rollupInternal(
 }
 
 async function getInputOptions(
-	rawInputOptions: GenericConfigObject,
+	rawInputOptions: InputOptions,
 	watchMode: boolean
 ): Promise<{ options: NormalizedInputOptions; unsetOptions: Set<string> }> {
 	if (!rawInputOptions) {
@@ -116,9 +111,9 @@ async function getInputOptions(
 	}
 	const rawPlugins = getSortedValidatedPlugins(
 		'options',
-		ensureArray(rawInputOptions.plugins) as Plugin[]
+		await normalizePluginOption(rawInputOptions.plugins)
 	);
-	const { options, unsetOptions } = normalizeInputOptions(
+	const { options, unsetOptions } = await normalizeInputOptions(
 		await rawPlugins.reduce(applyOptionHook(watchMode), Promise.resolve(rawInputOptions))
 	);
 	normalizePlugins(options.plugins, ANONYMOUS_PLUGIN_PREFIX);
@@ -126,40 +121,35 @@ async function getInputOptions(
 }
 
 function applyOptionHook(watchMode: boolean) {
-	return async (
-		inputOptions: Promise<GenericConfigObject>,
-		plugin: Plugin
-	): Promise<GenericConfigObject> => {
+	return async (inputOptions: Promise<RollupOptions>, plugin: Plugin): Promise<InputOptions> => {
 		const handler = 'handler' in plugin.options! ? plugin.options.handler : plugin.options!;
 		return (
-			((await handler.call(
-				{ meta: { rollupVersion, watchMode } },
-				await inputOptions
-			)) as GenericConfigObject) || inputOptions
+			(await handler.call({ meta: { rollupVersion, watchMode } }, await inputOptions)) ||
+			inputOptions
 		);
 	};
 }
 
 function normalizePlugins(plugins: readonly Plugin[], anonymousPrefix: string): void {
-	plugins.forEach((plugin, index) => {
+	for (const [index, plugin] of plugins.entries()) {
 		if (!plugin.name) {
 			plugin.name = `${anonymousPrefix}${index + 1}`;
 		}
-	});
+	}
 }
 
-function handleGenerateWrite(
+async function handleGenerateWrite(
 	isWrite: boolean,
 	inputOptions: NormalizedInputOptions,
 	unsetInputOptions: ReadonlySet<string>,
-	rawOutputOptions: GenericConfigObject,
+	rawOutputOptions: OutputOptions,
 	graph: Graph
 ): Promise<RollupOutput> {
 	const {
 		options: outputOptions,
 		outputPluginDriver,
 		unsetOptions
-	} = getOutputOptionsAndPluginDriver(
+	} = await getOutputOptionsAndPluginDriver(
 		rawOutputOptions,
 		graph.pluginDriver,
 		inputOptions,
@@ -169,11 +159,9 @@ function handleGenerateWrite(
 		const bundle = new Bundle(outputOptions, unsetOptions, inputOptions, outputPluginDriver, graph);
 		const generated = await bundle.generate(isWrite);
 		if (isWrite) {
+			timeStart('WRITE', 1);
 			if (!outputOptions.dir && !outputOptions.file) {
-				return error({
-					code: 'MISSING_OPTION',
-					message: 'You must specify "output.file" or "output.dir" for the build.'
-				});
+				return error(errorMissingFileOrDirOption());
 			}
 			await Promise.all(
 				Object.values(generated).map(chunk =>
@@ -181,30 +169,36 @@ function handleGenerateWrite(
 				)
 			);
 			await outputPluginDriver.hookParallel('writeBundle', [outputOptions, generated]);
+			timeEnd('WRITE', 1);
 		}
 		return createOutput(generated);
 	});
 }
 
-function getOutputOptionsAndPluginDriver(
-	rawOutputOptions: GenericConfigObject,
+async function getOutputOptionsAndPluginDriver(
+	rawOutputOptions: OutputOptions,
 	inputPluginDriver: PluginDriver,
 	inputOptions: NormalizedInputOptions,
 	unsetInputOptions: ReadonlySet<string>
-): {
+): Promise<{
 	options: NormalizedOutputOptions;
 	outputPluginDriver: PluginDriver;
 	unsetOptions: Set<string>;
-} {
+}> {
 	if (!rawOutputOptions) {
 		throw new Error('You must supply an options object');
 	}
-	const rawPlugins = ensureArray(rawOutputOptions.plugins) as Plugin[];
+	const rawPlugins = await normalizePluginOption(rawOutputOptions.plugins);
 	normalizePlugins(rawPlugins, ANONYMOUS_OUTPUT_PLUGIN_PREFIX);
 	const outputPluginDriver = inputPluginDriver.createOutputPluginDriver(rawPlugins);
 
 	return {
-		...getOutputOptions(inputOptions, unsetInputOptions, rawOutputOptions, outputPluginDriver),
+		...(await getOutputOptions(
+			inputOptions,
+			unsetInputOptions,
+			rawOutputOptions,
+			outputPluginDriver
+		)),
 		outputPluginDriver
 	};
 }
@@ -212,16 +206,16 @@ function getOutputOptionsAndPluginDriver(
 function getOutputOptions(
 	inputOptions: NormalizedInputOptions,
 	unsetInputOptions: ReadonlySet<string>,
-	rawOutputOptions: GenericConfigObject,
+	rawOutputOptions: OutputOptions,
 	outputPluginDriver: PluginDriver
-): { options: NormalizedOutputOptions; unsetOptions: Set<string> } {
+): Promise<{ options: NormalizedOutputOptions; unsetOptions: Set<string> }> {
 	return normalizeOutputOptions(
 		outputPluginDriver.hookReduceArg0Sync(
 			'outputOptions',
-			[rawOutputOptions.output || rawOutputOptions] as [OutputOptions],
+			[rawOutputOptions],
 			(outputOptions, result) => result || outputOptions,
 			pluginContext => {
-				const emitError = () => pluginContext.error(errCannotEmitFromOptionsHook());
+				const emitError = () => pluginContext.error(errorCannotEmitFromOptionsHook());
 				return {
 					...pluginContext,
 					emitFile: emitError,
@@ -273,31 +267,7 @@ async function writeOutputFile(
 	// 'recursive: true' does not throw if the folder structure, or parts of it, already exist
 	await fs.mkdir(dirname(fileName), { recursive: true });
 
-	let writeSourceMapPromise: Promise<void> | undefined;
-	let source: string | Uint8Array;
-	if (outputFile.type === 'asset') {
-		source = outputFile.source;
-	} else {
-		source = outputFile.code;
-		if (outputOptions.sourcemap && outputFile.map) {
-			let url: string;
-			if (outputOptions.sourcemap === 'inline') {
-				url = outputFile.map.toUrl();
-			} else {
-				const { sourcemapBaseUrl } = outputOptions;
-				const sourcemapFileName = `${basename(outputFile.fileName)}.map`;
-				url = sourcemapBaseUrl
-					? new URL(sourcemapFileName, sourcemapBaseUrl).toString()
-					: sourcemapFileName;
-				writeSourceMapPromise = fs.writeFile(`${fileName}.map`, outputFile.map.toString());
-			}
-			if (outputOptions.sourcemap !== 'hidden') {
-				source += `//# ${SOURCEMAPPING_URL}=${url}\n`;
-			}
-		}
-	}
-
-	return Promise.all([fs.writeFile(fileName, source), writeSourceMapPromise]);
+	return fs.writeFile(fileName, outputFile.type === 'asset' ? outputFile.source : outputFile.code);
 }
 
 /**

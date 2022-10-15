@@ -1,4 +1,4 @@
-const assert = require('assert');
+const assert = require('node:assert');
 
 module.exports = {
 	description: 'warns when specifying a custom importer function for formats other than "es"',
@@ -18,7 +18,8 @@ module.exports = {
 		},
 		output: {
 			dynamicImportFunction: 'myImporter',
-			format: 'cjs'
+			format: 'cjs',
+			dynamicImportInCjs: false
 		}
 	},
 	exports(exports) {
@@ -27,6 +28,11 @@ module.exports = {
 		);
 	},
 	warnings: [
+		{
+			code: 'DEPRECATED_FEATURE',
+			message:
+				'The "output.dynamicImportFunction" option is deprecated. Use the "renderDynamicImport" plugin hook instead.'
+		},
 		{
 			code: 'INVALID_OPTION',
 			message:

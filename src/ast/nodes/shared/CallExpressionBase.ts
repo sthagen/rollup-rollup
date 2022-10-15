@@ -1,12 +1,11 @@
 import type { DeoptimizableEntity } from '../../DeoptimizableEntity';
 import type { HasEffectsContext } from '../../ExecutionContext';
-import {
-	INTERACTION_ASSIGNED,
-	INTERACTION_CALLED,
+import type {
 	NodeInteraction,
 	NodeInteractionCalled,
-	NodeInteractionWithThisArg
+	NodeInteractionWithThisArgument
 } from '../../NodeInteractions';
+import { INTERACTION_ASSIGNED, INTERACTION_CALLED } from '../../NodeInteractions';
 import { type ObjectPath, type PathTracker, UNKNOWN_PATH } from '../../utils/PathTracker';
 import {
 	type ExpressionEntity,
@@ -48,7 +47,7 @@ export default abstract class CallExpressionBase extends NodeBase implements Deo
 	}
 
 	deoptimizeThisOnInteractionAtPath(
-		interaction: NodeInteractionWithThisArg,
+		interaction: NodeInteractionWithThisArgument,
 		path: ObjectPath,
 		recursionTracker: PathTracker
 	): void {
@@ -63,7 +62,7 @@ export default abstract class CallExpressionBase extends NodeBase implements Deo
 					this.expressionsToBeDeoptimized.add(interaction.thisArg);
 					returnExpression.deoptimizeThisOnInteractionAtPath(interaction, path, recursionTracker);
 				},
-				undefined
+				null
 			);
 		}
 	}
@@ -121,11 +120,13 @@ export default abstract class CallExpressionBase extends NodeBase implements Deo
 	): boolean {
 		const { type } = interaction;
 		if (type === INTERACTION_CALLED) {
+			const { args, withNew } = interaction;
 			if (
-				(interaction.withNew
-					? context.instantiated
-					: context.called
-				).trackEntityAtPathAndGetIfTracked(path, interaction.args, this)
+				(withNew ? context.instantiated : context.called).trackEntityAtPathAndGetIfTracked(
+					path,
+					args,
+					this
+				)
 			) {
 				return false;
 			}

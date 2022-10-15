@@ -1,32 +1,36 @@
 import type { NormalizedTreeshakingOptions } from '../../../rollup/types';
-import { DeoptimizableEntity } from '../../DeoptimizableEntity';
+import type { DeoptimizableEntity } from '../../DeoptimizableEntity';
 import {
 	BROKEN_FLOW_NONE,
 	type HasEffectsContext,
 	type InclusionContext
 } from '../../ExecutionContext';
+import type {
+	NodeInteraction,
+	NodeInteractionCalled,
+	NodeInteractionWithThisArgument
+} from '../../NodeInteractions';
 import {
 	INTERACTION_CALLED,
 	NODE_INTERACTION_UNKNOWN_ACCESS,
-	NODE_INTERACTION_UNKNOWN_CALL,
-	NodeInteraction,
-	NodeInteractionCalled,
-	NodeInteractionWithThisArg
+	NODE_INTERACTION_UNKNOWN_CALL
 } from '../../NodeInteractions';
-import ReturnValueScope from '../../scopes/ReturnValueScope';
-import { type ObjectPath, PathTracker, UNKNOWN_PATH, UnknownKey } from '../../utils/PathTracker';
+import type ReturnValueScope from '../../scopes/ReturnValueScope';
+import type { ObjectPath, PathTracker } from '../../utils/PathTracker';
+import { UNKNOWN_PATH, UnknownKey } from '../../utils/PathTracker';
 import BlockStatement from '../BlockStatement';
 import * as NodeType from '../NodeType';
 import RestElement from '../RestElement';
 import type SpreadElement from '../SpreadElement';
-import { type ExpressionEntity, LiteralValueOrUnknown, UNKNOWN_EXPRESSION } from './Expression';
+import type { ExpressionEntity, LiteralValueOrUnknown } from './Expression';
+import { UNKNOWN_EXPRESSION } from './Expression';
 import {
 	type ExpressionNode,
 	type GenericEsTreeNode,
 	type IncludeChildren,
 	NodeBase
 } from './Node';
-import { ObjectEntity } from './ObjectEntity';
+import type { ObjectEntity } from './ObjectEntity';
 import type { PatternNode } from './Pattern';
 
 export default abstract class FunctionBase extends NodeBase {
@@ -48,7 +52,7 @@ export default abstract class FunctionBase extends NodeBase {
 	}
 
 	deoptimizeThisOnInteractionAtPath(
-		interaction: NodeInteractionWithThisArg,
+		interaction: NodeInteractionWithThisArgument,
 		path: ObjectPath,
 		recursionTracker: PathTracker
 	): void {
@@ -119,8 +123,8 @@ export default abstract class FunctionBase extends NodeBase {
 				return true;
 			}
 		}
-		for (const param of this.params) {
-			if (param.hasEffects(context)) return true;
+		for (const parameter of this.params) {
+			if (parameter.hasEffects(context)) return true;
 		}
 		return false;
 	}
@@ -136,14 +140,14 @@ export default abstract class FunctionBase extends NodeBase {
 
 	includeCallArguments(
 		context: InclusionContext,
-		args: readonly (ExpressionEntity | SpreadElement)[]
+		parameters: readonly (ExpressionEntity | SpreadElement)[]
 	): void {
-		this.scope.includeCallArguments(context, args);
+		this.scope.includeCallArguments(context, parameters);
 	}
 
 	initialise(): void {
 		this.scope.addParameterVariables(
-			this.params.map(param => param.declare('parameter', UNKNOWN_EXPRESSION)),
+			this.params.map(parameter => parameter.declare('parameter', UNKNOWN_EXPRESSION)),
 			this.params[this.params.length - 1] instanceof RestElement
 		);
 		if (this.body instanceof BlockStatement) {

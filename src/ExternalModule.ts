@@ -1,45 +1,36 @@
 import ExternalVariable from './ast/variables/ExternalVariable';
-import type {
-	CustomPluginOptions,
-	ModuleInfo,
-	NormalizedInputOptions,
-	NormalizedOutputOptions
-} from './rollup/types';
+import type { CustomPluginOptions, ModuleInfo, NormalizedInputOptions } from './rollup/types';
 import { EMPTY_ARRAY } from './utils/blank';
-import { warnDeprecation } from './utils/error';
+import { errorUnusedExternalImports, warnDeprecation } from './utils/error';
 import { makeLegal } from './utils/identifierHelpers';
-import { normalize, relative } from './utils/path';
-import { printQuotedStringList } from './utils/printStringList';
-import relativeId from './utils/relativeId';
 
 export default class ExternalModule {
-	readonly declarations = new Map<string, ExternalVariable>();
-	defaultVariableName = '';
 	readonly dynamicImporters: string[] = [];
 	execIndex = Infinity;
 	readonly exportedVariables = new Map<ExternalVariable, string>();
 	readonly importers: string[] = [];
 	readonly info: ModuleInfo;
-	mostCommonSuggestion = 0;
-	readonly nameSuggestions = new Map<string, number>();
-	namespaceVariableName = '';
 	reexported = false;
-	renderPath: string = undefined as never;
 	suggestedVariableName: string;
 	used = false;
-	variableName = '';
+
+	private readonly declarations = new Map<string, ExternalVariable>();
+	private mostCommonSuggestion = 0;
+	private readonly nameSuggestions = new Map<string, number>();
 
 	constructor(
 		private readonly options: NormalizedInputOptions,
 		public readonly id: string,
 		moduleSideEffects: boolean | 'no-treeshake',
 		meta: CustomPluginOptions,
-		public readonly renormalizeRenderPath: boolean
+		public readonly renormalizeRenderPath: boolean,
+		assertions: Record<string, string>
 	) {
-		this.suggestedVariableName = makeLegal(id.split(/[\\/]/).pop()!);
+		this.suggestedVariableName = makeLegal(id.split(/[/\\]/).pop()!);
 
 		const { importers, dynamicImporters } = this;
 		const info: ModuleInfo = (this.info = {
+			assertions,
 			ast: null,
 			code: null,
 			dynamicallyImportedIdResolutions: EMPTY_ARRAY,
@@ -51,7 +42,7 @@ export default class ExternalModule {
 			get hasModuleSideEffects() {
 				warnDeprecation(
 					'Accessing ModuleInfo.hasModuleSideEffects from plugins is deprecated. Please use ModuleInfo.moduleSideEffects instead.',
-					false,
+					true,
 					options
 				);
 				return info.moduleSideEffects;
@@ -87,16 +78,6 @@ export default class ExternalModule {
 		return [externalVariable];
 	}
 
-	setRenderPath(options: NormalizedOutputOptions, inputBase: string): void {
-		this.renderPath =
-			typeof options.paths === 'function' ? options.paths(this.id) : options.paths[this.id];
-		if (!this.renderPath) {
-			this.renderPath = this.renormalizeRenderPath
-				? normalize(relative(inputBase, this.id))
-				: this.id;
-		}
-	}
-
 	suggestName(name: string): void {
 		const value = (this.nameSuggestions.get(name) ?? 0) + 1;
 		this.nameSuggestions.set(name, value);
@@ -108,7 +89,7 @@ export default class ExternalModule {
 	}
 
 	warnUnusedImports(): void {
-		const unused = Array.from(this.declarations)
+		const unused = [...this.declarations]
 			.filter(
 				([name, declaration]) =>
 					name !== '*' && !declaration.included && !this.reexported && !declaration.referenced
@@ -124,16 +105,6 @@ export default class ExternalModule {
 			}
 		}
 		const importersArray = [...importersSet];
-		this.options.onwarn({
-			code: 'UNUSED_EXTERNAL_IMPORT',
-			message: `${printQuotedStringList(unused, ['is', 'are'])} imported from external module "${
-				this.id
-			}" but never used in ${printQuotedStringList(
-				importersArray.map(importer => relativeId(importer))
-			)}.`,
-			names: unused,
-			source: this.id,
-			sources: importersArray
-		});
+		this.options.onwarn(errorUnusedExternalImports(this.id, unused, importersArray));
 	}
 }

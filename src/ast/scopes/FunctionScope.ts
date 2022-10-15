@@ -1,7 +1,7 @@
 import type { AstContext } from '../../Module';
 import type { InclusionContext } from '../ExecutionContext';
 import type SpreadElement from '../nodes/SpreadElement';
-import { ExpressionEntity } from '../nodes/shared/Expression';
+import type { ExpressionEntity } from '../nodes/shared/Expression';
 import ArgumentsVariable from '../variables/ArgumentsVariable';
 import ThisVariable from '../variables/ThisVariable';
 import type ChildScope from './ChildScope';
@@ -23,13 +23,13 @@ export default class FunctionScope extends ReturnValueScope {
 
 	includeCallArguments(
 		context: InclusionContext,
-		args: readonly (ExpressionEntity | SpreadElement)[]
+		parameters: readonly (ExpressionEntity | SpreadElement)[]
 	): void {
-		super.includeCallArguments(context, args);
+		super.includeCallArguments(context, parameters);
 		if (this.argumentsVariable.included) {
-			for (const arg of args) {
-				if (!arg.included) {
-					arg.include(context, false);
+			for (const argument of parameters) {
+				if (!argument.included) {
+					argument.include(context, false);
 				}
 			}
 		}

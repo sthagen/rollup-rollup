@@ -1,13 +1,14 @@
-import { type HasEffectsContext, InclusionContext } from '../ExecutionContext';
-import { INTERACTION_CALLED, NodeInteraction } from '../NodeInteractions';
+import type { HasEffectsContext, InclusionContext } from '../ExecutionContext';
+import type { NodeInteraction } from '../NodeInteractions';
+import { INTERACTION_CALLED } from '../NodeInteractions';
 import ReturnValueScope from '../scopes/ReturnValueScope';
 import type Scope from '../scopes/Scope';
 import { type ObjectPath } from '../utils/PathTracker';
-import BlockStatement from './BlockStatement';
+import type BlockStatement from './BlockStatement';
 import Identifier from './Identifier';
-import * as NodeType from './NodeType';
+import type * as NodeType from './NodeType';
 import FunctionBase from './shared/FunctionBase';
-import { type ExpressionNode, IncludeChildren } from './shared/Node';
+import type { ExpressionNode, IncludeChildren } from './shared/Node';
 import { ObjectEntity } from './shared/ObjectEntity';
 import { OBJECT_PROTOTYPE } from './shared/ObjectPrototype';
 import type { PatternNode } from './shared/Pattern';
@@ -53,9 +54,9 @@ export default class ArrowFunctionExpression extends FunctionBase {
 
 	include(context: InclusionContext, includeChildrenRecursively: IncludeChildren): void {
 		super.include(context, includeChildrenRecursively);
-		for (const param of this.params) {
-			if (!(param instanceof Identifier)) {
-				param.include(context, includeChildrenRecursively);
+		for (const parameter of this.params) {
+			if (!(parameter instanceof Identifier)) {
+				parameter.include(context, includeChildrenRecursively);
 			}
 		}
 	}

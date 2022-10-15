@@ -1,4 +1,4 @@
-const assert = require('assert');
+const assert = require('node:assert');
 
 module.exports = {
 	description: 'adds Symbol.toStringTag property to entry chunks with named exports',
@@ -18,5 +18,12 @@ module.exports = {
 		assert.deepStrictEqual(copied, { foo: 42 });
 		assert.strictEqual(Object.prototype.toString.call(copied), '[object Object]');
 		assert.strictEqual(copied[Symbol.toStringTag], undefined);
-	}
+	},
+	warnings: [
+		{
+			code: 'DEPRECATED_FEATURE',
+			message:
+				'The "output.namespaceToStringTag" option is deprecated. Use the "output.generatedCode.symbols" option instead.'
+		}
+	]
 };

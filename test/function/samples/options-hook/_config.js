@@ -1,4 +1,4 @@
-const assert = require('assert');
+const assert = require('node:assert');
 
 module.exports = {
 	description: 'allows to read and modify options in the options hook',
@@ -15,11 +15,11 @@ module.exports = {
 						preserveParens: false,
 						sourceType: 'module'
 					},
-					acornInjectPlugins: [],
+					acornInjectPlugins: [null],
 					context: 'undefined',
 					experimentalCacheExpiry: 10,
 					input: ['used'],
-					makeAbsoluteExternalsRelative: true,
+					makeAbsoluteExternalsRelative: 'ifRelativeSource',
 					maxParallelFileOps: 20,
 					maxParallelFileReads: 20,
 					perf: false,
@@ -28,7 +28,7 @@ module.exports = {
 							name: 'test-plugin'
 						}
 					],
-					preserveEntrySignatures: 'strict',
+					preserveEntrySignatures: 'exports-only',
 					preserveSymlinks: false,
 					shimMissingExports: false,
 					strictDeprecations: true,

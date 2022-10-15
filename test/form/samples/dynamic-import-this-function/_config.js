@@ -1,4 +1,4 @@
-const assert = require('assert');
+const assert = require('node:assert');
 
 module.exports = {
 	description: 'uses correct "this" in dynamic imports when not using arrow functions',
@@ -6,7 +6,8 @@ module.exports = {
 		external: ['input', 'output'],
 		output: {
 			generatedCode: { arrowFunctions: false },
-			name: 'bundle'
+			name: 'bundle',
+			dynamicImportInCjs: false
 		}
 	}
 };

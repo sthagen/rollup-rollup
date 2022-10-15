@@ -1,4 +1,4 @@
-const assert = require('assert');
+const assert = require('node:assert');
 const rollup = require('../../dist/rollup');
 const { assertIncludes, loader } = require('../utils.js');
 
@@ -80,10 +80,11 @@ describe('misc', () => {
 				assert.deepEqual(warnings, [
 					{
 						code: 'MISSING_GLOBAL_NAME',
-						guess: '_',
+						id: 'lodash',
 						message:
-							"No name was provided for external module 'lodash' in output.globals – guessing '_'",
-						source: 'lodash'
+							'No name was provided for external module "lodash" in "output.globals" – guessing "_".',
+						names: ['_'],
+						url: 'https://rollupjs.org/guide/en/#outputglobals'
 					}
 				]);
 			});
@@ -110,7 +111,7 @@ describe('misc', () => {
 				assert.equal(warnings.length, 0);
 				assert.deepEqual(
 					output.map(({ fileName }) => fileName),
-					['main1.js', 'main2.js', 'dep-f8bec8a7.js', 'dyndep-b0a9ee12.js']
+					['main1.js', 'main2.js', 'dep-9394ae8f.js', 'dyndep-d5d54b59.js']
 				);
 			});
 	});
@@ -250,12 +251,12 @@ console.log(x);
 	});
 
 	it('throws the proper error on max call stack exception', async () => {
-		const count = 10000;
+		const count = 10_000;
 		let source = '';
-		for (let i = 0; i < count; i++) {
+		for (let index = 0; index < count; index++) {
 			source += `if (foo) {`;
 		}
-		for (let i = 0; i < count; i++) {
+		for (let index = 0; index < count; index++) {
 			source += '}';
 		}
 		try {
@@ -269,9 +270,9 @@ console.log(x);
 					})
 				]
 			});
-		} catch (err) {
-			assert.notDeepStrictEqual(err.message, 'Maximum call stack size exceeded');
-			assert.strictEqual(err.name, 'Error');
+		} catch (error) {
+			assert.notDeepStrictEqual(error.message, 'Maximum call stack size exceeded');
+			assert.strictEqual(error.name, 'RollupError');
 		}
 	});
 

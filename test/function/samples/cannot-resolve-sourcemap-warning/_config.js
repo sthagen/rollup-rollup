@@ -1,4 +1,4 @@
-const path = require('path');
+const path = require('node:path');
 const ID_MAIN = path.join(__dirname, 'main.js');
 
 module.exports = {
@@ -13,6 +13,9 @@ module.exports = {
 	},
 	warnings: [
 		{
+			cause: {
+				message: "Can't resolve original location of error."
+			},
 			code: 'SOURCEMAP_ERROR',
 			id: ID_MAIN,
 			loc: {

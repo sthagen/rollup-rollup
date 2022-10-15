@@ -17,7 +17,7 @@ import {
 	type HasEffectsContext,
 	type InclusionContext
 } from '../ExecutionContext';
-import { NodeInteraction } from '../NodeInteractions';
+import type { NodeInteraction } from '../NodeInteractions';
 import { EMPTY_PATH, type ObjectPath, UNKNOWN_PATH } from '../utils/PathTracker';
 import type Variable from '../variables/Variable';
 import Identifier from './Identifier';
@@ -46,12 +46,12 @@ export default class AssignmentExpression extends NodeBase {
 	declare type: NodeType.tAssignmentExpression;
 
 	hasEffects(context: HasEffectsContext): boolean {
-		const { deoptimized, left, right } = this;
+		const { deoptimized, left, operator, right } = this;
 		if (!deoptimized) this.applyDeoptimizations();
 		// MemberExpressions do not access the property before assignments if the
 		// operator is '='.
 		return (
-			right.hasEffects(context) || left.hasEffectsAsAssignmentTarget(context, this.operator !== '=')
+			right.hasEffects(context) || left.hasEffectsAsAssignmentTarget(context, operator !== '=')
 		);
 	}
 

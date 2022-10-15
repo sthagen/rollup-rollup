@@ -1,11 +1,12 @@
-const assert = require('assert');
-const path = require('path');
+const assert = require('node:assert');
+const path = require('node:path');
 
 const tests = [
 	{
 		source: './existing',
 		expected: {
 			id: path.join(__dirname, 'existing.js'),
+			assertions: {},
 			external: false,
 			meta: {},
 			moduleSideEffects: true,
@@ -24,6 +25,7 @@ const tests = [
 		source: './marked-directly-external-relative',
 		expected: {
 			id: path.join(__dirname, 'marked-directly-external-relative'),
+			assertions: {},
 			external: true,
 			meta: {},
 			moduleSideEffects: true,
@@ -34,6 +36,7 @@ const tests = [
 		source: './marked-external-relative',
 		expected: {
 			id: path.join(__dirname, 'marked-external-relative'),
+			assertions: {},
 			external: true,
 			meta: {},
 			moduleSideEffects: true,
@@ -44,6 +47,7 @@ const tests = [
 		source: 'marked-external-absolute',
 		expected: {
 			id: 'marked-external-absolute',
+			assertions: {},
 			external: true,
 			meta: {},
 			moduleSideEffects: true,
@@ -54,6 +58,7 @@ const tests = [
 		source: 'resolved-name',
 		expected: {
 			id: 'resolved:resolved-name',
+			assertions: {},
 			external: false,
 			meta: {},
 			moduleSideEffects: true,
@@ -64,6 +69,7 @@ const tests = [
 		source: 'resolved-false',
 		expected: {
 			id: 'resolved-false',
+			assertions: {},
 			external: true,
 			meta: {},
 			moduleSideEffects: true,
@@ -74,6 +80,7 @@ const tests = [
 		source: 'resolved-object',
 		expected: {
 			id: 'resolved:resolved-object',
+			assertions: {},
 			external: false,
 			meta: {},
 			moduleSideEffects: true,
@@ -84,6 +91,7 @@ const tests = [
 		source: 'resolved-object-non-external',
 		expected: {
 			id: 'resolved:resolved-object-non-external',
+			assertions: {},
 			external: false,
 			meta: {},
 			moduleSideEffects: true,
@@ -94,6 +102,7 @@ const tests = [
 		source: 'resolved-object-external',
 		expected: {
 			id: 'resolved:resolved-object-external',
+			assertions: {},
 			external: true,
 			meta: {},
 			moduleSideEffects: true,
@@ -132,16 +141,21 @@ module.exports = {
 			{
 				resolveId(id) {
 					switch (id) {
-						case 'resolved-name':
+						case 'resolved-name': {
 							return 'resolved:resolved-name';
-						case 'resolved-false':
+						}
+						case 'resolved-false': {
 							return false;
-						case 'resolved-object':
+						}
+						case 'resolved-object': {
 							return { id: 'resolved:resolved-object' };
-						case 'resolved-object-non-external':
+						}
+						case 'resolved-object-non-external': {
 							return { id: 'resolved:resolved-object-non-external', external: false };
-						case 'resolved-object-external':
+						}
+						case 'resolved-object-external': {
 							return { id: 'resolved:resolved-object-external', external: true };
+						}
 					}
 				}
 			}
