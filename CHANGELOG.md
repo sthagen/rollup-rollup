@@ -1,5 +1,45 @@
 # rollup changelog
 
+## 3.2.3
+
+_2022-10-18_
+
+### Bug Fixes
+
+- Fix an issue whre Rollup confused `new.target` with `import.meta` (#4679)
+- Ensure that Rollup does not make assumptions about the value of unknown namespace import members (#4684)
+
+### Pull Requests
+
+- [#4679](https://github.com/rollup/rollup/pull/4679): Do not rewrite new.target (@lukastaegert)
+- [#4683](https://github.com/rollup/rollup/pull/4683): Remove typo in resolveId documentation (@ChrispyChris)
+- [#4684](https://github.com/rollup/rollup/pull/4684): Return correct values for unknown namespace members (@lukastaegert)
+
+## 3.2.2
+
+_2022-10-16_
+
+### Bug Fixes
+
+- Do not hang/crash on hashbang comments in input modules (#4676)
+
+### Pull Requests
+
+- [#4675](https://github.com/rollup/rollup/pull/4675): refactor: improve & simplify types (@sxzz)
+- [#4676](https://github.com/rollup/rollup/pull/4676): Ignore hashhbang comments (@lukastaegert)
+
+## 3.2.1
+
+_2022-10-16_
+
+### Bug Fixes
+
+- Rewrite class declarations to preserve their .name property if necessary (#4674)
+
+### Pull Requests
+
+- [#4674](https://github.com/rollup/rollup/pull/4674): Preserve rendered class names (@lukastaegert)
+
 ## 3.2.0
 
 _2022-10-15_
