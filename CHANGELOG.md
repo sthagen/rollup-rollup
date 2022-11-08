@@ -1,5 +1,32 @@
 # rollup changelog
 
+## 3.2.5
+
+_2022-11-01_
+
+### Bug Fixes
+
+- We deconflicting classes, ensure the original class name still does not shadow variables (#4697)
+
+### Pull Requests
+
+- [#4697](https://github.com/rollup/rollup/pull/4697): Prevent class ids from shadowing other variables (@lukastaegert)
+
+## 3.2.4
+
+_2022-10-31_
+
+### Bug Fixes
+
+- Always use forward slashes in chunk ids when preserving modules, even on Windows (#4693)
+- Escape problematic characters in ids when rewriting `import.meta.url` (#4693)
+
+### Pull Requests
+
+- [#4685](https://github.com/rollup/rollup/pull/4685): update package-lock version (@jerry-lllman)
+- [#4689](https://github.com/rollup/rollup/pull/4689): Update 07-tools.md (@cokert)
+- [#4693](https://github.com/rollup/rollup/pull/4693): Use correct import.meta.url slashes on Windows (@lukastaegert)
+
 ## 3.2.3
 
 _2022-10-18_
