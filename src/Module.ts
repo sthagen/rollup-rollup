@@ -71,6 +71,7 @@ import {
 	getAssertionsFromImportExportDeclaration
 } from './utils/parseAssertions';
 import { basename, extname } from './utils/path';
+import type { PureFunctions } from './utils/pureFunctions';
 import type { RenderOptions } from './utils/renderHelpers';
 import { timeEnd, timeStart } from './utils/timers';
 import { markModuleAndImpureDependenciesAsExecuted } from './utils/traverseStaticDependencies';
@@ -116,6 +117,7 @@ export interface AstContext {
 	includeDynamicImport: (node: ImportExpression) => void;
 	includeVariableInModule: (variable: Variable) => void;
 	magicString: MagicString;
+	manualPureFunctions: PureFunctions;
 	module: Module; // not to be used for tree-shaking
 	moduleContext: string;
 	options: NormalizedInputOptions;
@@ -685,8 +687,12 @@ export default class Module {
 		this.includeAllExports(false);
 	}
 
-	isIncluded(): boolean {
-		return this.ast!.included || this.namespace.included || this.importedFromNotTreeshaken;
+	isIncluded(): boolean | null {
+		// Modules where this.ast is missing have been loaded via this.load and are
+		// not yet fully processed, hence they cannot be included.
+		return (
+			this.ast && (this.ast.included || this.namespace.included || this.importedFromNotTreeshaken)
+		);
 	}
 
 	linkImports(): void {
@@ -780,6 +786,7 @@ export default class Module {
 			includeDynamicImport: this.includeDynamicImport.bind(this),
 			includeVariableInModule: this.includeVariableInModule.bind(this),
 			magicString: this.magicString,
+			manualPureFunctions: this.graph.pureFunctions,
 			module: this,
 			moduleContext: this.context,
 			options: this.options,
