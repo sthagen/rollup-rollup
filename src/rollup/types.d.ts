@@ -19,7 +19,7 @@ export type RollupWarning = RollupLog;
 
 export interface RollupLog {
 	binding?: string;
-	cause?: Error;
+	cause?: unknown;
 	code?: string;
 	exporter?: string;
 	frame?: string;
@@ -157,6 +157,8 @@ interface ModuleInfo extends ModuleOptions {
 	dynamicImporters: readonly string[];
 	dynamicallyImportedIdResolutions: readonly ResolvedId[];
 	dynamicallyImportedIds: readonly string[];
+	exportedBindings: Record<string, string[]> | null;
+	exports: string[] | null;
 	hasDefaultExport: boolean | null;
 	/** @deprecated Use `moduleSideEffects` instead */
 	hasModuleSideEffects: boolean | 'no-treeshake';

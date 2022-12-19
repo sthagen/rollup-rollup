@@ -1,5 +1,95 @@
 # rollup changelog
 
+## 3.7.5
+
+_2022-12-17_
+
+### Bug Fixes
+
+- Avoid name shadowing when default exporting a class that matches the name of another class (#4756)
+- Do not display the error message both in a separate line and in the stack trace in rollup CLI (#4749)
+- Make type of `RollupWarning.cause` compatible with `Error.cause` (#4757)
+- Do not swallow side effects when interacting with modules namespaces nested in another object (#4758)
+
+### Pull Requests
+
+- [#4749](https://github.com/rollup/rollup/pull/4749): feat: simplify `stack` info in cli error (@TrickyPi)
+- [#4756](https://github.com/rollup/rollup/pull/4756): Avoid name conflicts for default exported classes (@lukastaegert)
+- [#4757](https://github.com/rollup/rollup/pull/4757): fix: RollupLog cause allow unknown (@Shinigami92)
+- [#4758](https://github.com/rollup/rollup/pull/4758): Correctly handle side effects when a namespace is nested in an object (@lukastaegert)
+
+## 3.7.4
+
+_2022-12-13_
+
+### Bug Fixes
+
+- Do not remove calls to `.exec` and `.test` for included stateful regular expressions (#4742)
+
+### Pull Requests
+
+- [#4742](https://github.com/rollup/rollup/pull/4742): fix: check whether RegExp have the global or sticky flags set (@TrickyPi)
+
+## 3.7.3
+
+_2022-12-11_
+
+### Bug Fixes
+
+- Ensure `this.getFileName` no longer returns a placeholder as soon as hash placeholders have been resolved (#4747)
+
+### Pull Requests
+
+- [#4747](https://github.com/rollup/rollup/pull/4747): provide hashed file name when using this.getFileName in generateBundle (@lukastaegert)
+
+## 3.7.2
+
+_2022-12-10_
+
+### Bug Fixes
+
+- Improve chunk generation performance when one module is dynamically imported by many other modules (#4736)
+
+### Pull Requests
+
+- [#4736](https://github.com/rollup/rollup/pull/4736): Improve chunk assignment performance (@lukastaegert)
+
+## 3.7.1
+
+_2022-12-09_
+
+### Bug Fixes
+
+- Ad a hint to use @rollup/plugin-json when imports from a JSON file are not found (#4741)
+
+### Pull Requests
+
+- [#4741](https://github.com/rollup/rollup/pull/4741): fix: provide json hint when importing a no export json file (@TrickyPi)
+
+## 3.7.0
+
+_2022-12-08_
+
+### Features
+
+- Do not treat `.test` and `.exec` on regular expressions as side effects (#4737)
+
+### Pull Requests
+
+- [#4737](https://github.com/rollup/rollup/pull/4737): feat: add sutiable RegExp prototype methods (@TrickyPi)
+
+## 3.6.0
+
+_2022-12-05_
+
+### Features
+
+- extend `this.getModuleInfo` with information about exports (#4731)
+
+### Pull Requests
+
+- [#4731](https://github.com/rollup/rollup/pull/4731): feat: add `exports` and `exportedBindings` to `Module` class (@TrickyPi)
+
 ## 3.5.1
 
 _2022-12-01_

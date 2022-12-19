@@ -48,6 +48,14 @@ const _numberHasOwnProperty = (1).hasOwnProperty('toString').valueOf();
 const _numberIsPrototypeOf = (1).isPrototypeOf(1).valueOf();
 const _numberPropertyIsEnumerable = (1).propertyIsEnumerable('toString').valueOf();
 
+// RegExp prototype
+/1/.test('1');
+/1/.exec('1');
+/1/y.test('1');
+/1/y.exec('1');
+/1/g.test('1');
+/1/g.exec('1');
+
 // string prototype
 'ab'.valueOf();
 'ab'.valueOf().valueOf();

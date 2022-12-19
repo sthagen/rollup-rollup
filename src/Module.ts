@@ -63,7 +63,7 @@ import {
 	warnDeprecation
 } from './utils/error';
 import { getId } from './utils/getId';
-import { getOrCreate } from './utils/getOrCreate';
+import { getNewSet, getOrCreate } from './utils/getOrCreate';
 import { getOriginalLocation } from './utils/getOriginalLocation';
 import { makeLegal } from './utils/identifierHelpers';
 import {
@@ -164,10 +164,10 @@ function getVariableForExportNameRecursive(
 }
 
 function getAndExtendSideEffectModules(variable: Variable, module: Module): Set<Module> {
-	const sideEffectModules = getOrCreate(
+	const sideEffectModules = getOrCreate<Variable, Set<Module>>(
 		module.sideEffectDependenciesByVariable,
 		variable,
-		() => new Set()
+		getNewSet
 	);
 	let currentVariable: Variable | null = variable;
 	const referencedVariables = new Set([currentVariable]);
@@ -274,6 +274,8 @@ export default class Module {
 		const {
 			dynamicImports,
 			dynamicImporters,
+			exportAllSources,
+			exports,
 			implicitlyLoadedAfter,
 			implicitlyLoadedBefore,
 			importers,
@@ -297,6 +299,26 @@ export default class Module {
 			},
 			get dynamicImporters() {
 				return dynamicImporters.sort();
+			},
+			get exportedBindings() {
+				const exportBindings: Record<string, string[]> = { '.': [...exports.keys()] };
+
+				for (const [name, { source }] of reexportDescriptions) {
+					(exportBindings[source] ??= []).push(name);
+				}
+
+				for (const source of exportAllSources) {
+					(exportBindings[source] ??= []).push('*');
+				}
+
+				return exportBindings;
+			},
+			get exports() {
+				return [
+					...exports.keys(),
+					...reexportDescriptions.keys(),
+					...[...exportAllSources].map(() => '*')
+				];
 			},
 			get hasDefaultExport() {
 				// This information is only valid after parsing
@@ -591,7 +613,7 @@ export default class Module {
 				getOrCreate(
 					importerForSideEffects.sideEffectDependenciesByVariable,
 					variable,
-					() => new Set()
+					getNewSet
 				).add(this);
 				setAlternativeExporterIfCyclic(variable, importerForSideEffects, this);
 			}
