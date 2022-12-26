@@ -1,5 +1,37 @@
 # rollup changelog
 
+## 3.8.1
+
+_2022-12-23_
+
+### Bug Fixes
+
+- Reduce memory footprint when explicitly passing `cache: false` (#4762)
+- Fix a crash when preserving modules and reexporting namespaces (#4766)
+
+### Pull Requests
+
+- [#4762](https://github.com/rollup/rollup/pull/4762): Improve AST garbage collection (@bluwy)
+- [#4766](https://github.com/rollup/rollup/pull/4766): Fix handling of namespace reexports when preserving modules (@lukastaegert)
+
+## 3.8.0
+
+_2022-12-22_
+
+### Features
+
+- Deduplicate ESM exports and reexports when preserving modules (#4759)
+
+### Bug Fixes
+
+- Handle files that are emitted as a side effect of the manualChunks option (#4759)
+
+### Pull Requests
+
+- [#4759](https://github.com/rollup/rollup/pull/4759): feat: deduplicate reexports and renderedExports to simplify output (@TrickyPi)
+- [#4761](https://github.com/rollup/rollup/pull/4761): Support emitting files via manualChunks in output (@lukastaegert)
+- [#4763](https://github.com/rollup/rollup/pull/4763): docs: update outdated info (@TrickyPi)
+
 ## 3.7.5
 
 _2022-12-17_
