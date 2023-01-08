@@ -91,7 +91,7 @@ export default {
 };
 ```
 
-If you want to convert a set of file to another format while maintaining the file structure and export signatures, the recommended way—instead of using [`output.preserveModules`](guide/en/#outputpreservemodules) that may tree-shake exports as well as emit virtual files created by plugins—is to turn every file into an entry point. You can do so dynamically e.g. via the `glob` package:
+If you want to convert a set of files to another format while maintaining the file structure and export signatures, the recommended way—instead of using [`output.preserveModules`](guide/en/#outputpreservemodules) that may tree-shake exports as well as emit virtual files created by plugins—is to turn every file into an entry point. You can do so dynamically e.g. via the `glob` package:
 
 ```js
 import glob from 'glob';
@@ -268,7 +268,7 @@ The following will add minification to one of the outputs:
 
 ```js
 // rollup.config.js
-import { terser } from 'rollup-plugin-terser';
+import terser from '@rollup/plugin-terser';
 
 export default {
   input: 'main.js',
@@ -301,7 +301,11 @@ const isProduction = process.env.NODE_ENV === 'production';
 
 export default (async () => ({
   input: 'main.js',
-  plugins: [resolve(), commonjs(), isProduction && (await import('rollup-plugin-terser')).terser()],
+  plugins: [
+    resolve(),
+    commonjs(),
+    isProduction && (await import('@rollup/plugin-terser')).default()
+  ],
   output: {
     file: 'bundle.js',
     format: 'cjs'

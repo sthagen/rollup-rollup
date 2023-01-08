@@ -142,7 +142,6 @@ export default class Bundle {
 				if ('code' in file) {
 					try {
 						this.graph.contextParse(file.code, {
-							allowHashBang: true,
 							ecmaVersion: 'latest'
 						});
 					} catch (error_: any) {
@@ -267,7 +266,7 @@ function getIncludedModules(modulesById: ReadonlyMap<string, Module | ExternalMo
 }
 
 function getAbsoluteEntryModulePaths(
-	includedModules: Module[],
+	includedModules: readonly Module[],
 	preserveModules: boolean
 ): string[] {
 	const absoluteEntryModulePaths: string[] = [];

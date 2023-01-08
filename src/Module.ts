@@ -9,12 +9,13 @@ import { nodeConstructors } from './ast/nodes';
 import ExportAllDeclaration from './ast/nodes/ExportAllDeclaration';
 import ExportDefaultDeclaration from './ast/nodes/ExportDefaultDeclaration';
 import type ExportNamedDeclaration from './ast/nodes/ExportNamedDeclaration';
-import type Identifier from './ast/nodes/Identifier';
+import Identifier from './ast/nodes/Identifier';
 import type ImportDeclaration from './ast/nodes/ImportDeclaration';
+import ImportDefaultSpecifier from './ast/nodes/ImportDefaultSpecifier';
 import type ImportExpression from './ast/nodes/ImportExpression';
+import ImportNamespaceSpecifier from './ast/nodes/ImportNamespaceSpecifier';
 import Literal from './ast/nodes/Literal';
 import type MetaProperty from './ast/nodes/MetaProperty';
-import * as NodeType from './ast/nodes/NodeType';
 import Program from './ast/nodes/Program';
 import TemplateLiteral from './ast/nodes/TemplateLiteral';
 import VariableDeclaration from './ast/nodes/VariableDeclaration';
@@ -770,12 +771,12 @@ export default class Module {
 		this.transformDependencies = transformDependencies;
 		this.customTransformCache = customTransformCache;
 		this.updateOptions(moduleOptions);
-		const moduleAst = ast || this.tryParse();
+		const moduleAst = ast ?? this.tryParse();
 
 		timeEnd('generate ast', 3);
 		timeStart('analyze ast', 3);
 
-		this.resolvedIds = resolvedIds || Object.create(null);
+		this.resolvedIds = resolvedIds ?? Object.create(null);
 
 		// By default, `id` is the file name. Custom resolvers and loaders
 		// can change that, but it makes sense to use it for the source file name
@@ -880,17 +881,17 @@ export default class Module {
 			return localVariable;
 		}
 
-		const importDeclaration = this.importDescriptions.get(name);
-		if (importDeclaration) {
-			const otherModule = importDeclaration.module;
+		const importDescription = this.importDescriptions.get(name);
+		if (importDescription) {
+			const otherModule = importDescription.module;
 
-			if (otherModule instanceof Module && importDeclaration.name === '*') {
+			if (otherModule instanceof Module && importDescription.name === '*') {
 				return otherModule.namespace;
 			}
 
 			const [declaration] = getVariableForExportNameRecursive(
 				otherModule,
-				importDeclaration.name,
+				importDescription.name,
 				importerForSideEffects || this,
 				isExportAllSearch,
 				searchedNamesAndModules
@@ -898,8 +899,8 @@ export default class Module {
 
 			if (!declaration) {
 				return this.error(
-					errorMissingExport(importDeclaration.name, this.id, otherModule.id),
-					importDeclaration.start
+					errorMissingExport(importDescription.name, this.id, otherModule.id),
+					importDescription.start
 				);
 			}
 
@@ -907,14 +908,6 @@ export default class Module {
 		}
 
 		return null;
-	}
-
-	tryParse(): acorn.Node {
-		try {
-			return this.graph.contextParse(this.info.code!);
-		} catch (error_: any) {
-			return this.error(errorParseError(error_, this.id), error_.pos);
-		}
 	}
 
 	updateOptions({
@@ -983,13 +976,13 @@ export default class Module {
 
 			const source = node.source.value;
 			this.addSource(source, node);
-			for (const specifier of node.specifiers) {
-				const name = specifier.exported.name;
+			for (const { exported, local, start } of node.specifiers) {
+				const name = exported instanceof Literal ? exported.value : exported.name;
 				this.reexportDescriptions.set(name, {
-					localName: specifier.local.name,
+					localName: local instanceof Literal ? local.value : local.name,
 					module: null as never, // filled in later,
 					source,
-					start: specifier.start
+					start
 				});
 			}
 		} else if (node.declaration) {
@@ -1012,9 +1005,10 @@ export default class Module {
 		} else {
 			// export { foo, bar, baz }
 
-			for (const specifier of node.specifiers) {
-				const localName = specifier.local.name;
-				const exportedName = specifier.exported.name;
+			for (const { local, exported } of node.specifiers) {
+				// except for reexports, local must be an Identifier
+				const localName = (local as Identifier).name;
+				const exportedName = exported instanceof Identifier ? exported.name : exported.value;
 				this.exports.set(exportedName, { identifier: null, localName });
 			}
 		}
@@ -1024,10 +1018,14 @@ export default class Module {
 		const source = node.source.value;
 		this.addSource(source, node);
 		for (const specifier of node.specifiers) {
-			const isDefault = specifier.type === NodeType.ImportDefaultSpecifier;
-			const isNamespace = specifier.type === NodeType.ImportNamespaceSpecifier;
-
-			const name = isDefault ? 'default' : isNamespace ? '*' : specifier.imported.name;
+			const name =
+				specifier instanceof ImportDefaultSpecifier
+					? 'default'
+					: specifier instanceof ImportNamespaceSpecifier
+					? '*'
+					: specifier.imported instanceof Identifier
+					? specifier.imported.name
+					: specifier.imported.value;
 			this.importDescriptions.set(specifier.local.name, {
 				module: null as never, // filled in later
 				name,
@@ -1252,6 +1250,14 @@ export default class Module {
 	private shimMissingExport(name: string): void {
 		this.options.onwarn(errorShimmedExport(this.id, name));
 		this.exports.set(name, MISSING_EXPORT_SHIM_DESCRIPTION);
+	}
+
+	private tryParse(): acorn.Node {
+		try {
+			return this.graph.contextParse(this.info.code!);
+		} catch (error_: any) {
+			return this.error(errorParseError(error_, this.id), error_.pos);
+		}
 	}
 }
 

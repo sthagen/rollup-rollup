@@ -7,7 +7,7 @@ import type {
 	RollupWarning,
 	WarningHandler
 } from '../rollup/types';
-import { extname } from '../utils/path';
+import { extname } from './path';
 import getCodeFrame from './getCodeFrame';
 import { printQuotedStringList } from './printStringList';
 import relativeId from './relativeId';
@@ -460,7 +460,7 @@ export function errorInvalidOption(
 	return {
 		code: INVALID_OPTION,
 		message: `Invalid value ${
-			value !== undefined ? `${JSON.stringify(value)} ` : ''
+			value === undefined ? '' : `${JSON.stringify(value)} `
 		}for option "${option}" - ${explanation}.`,
 		url: `https://rollupjs.org/guide/en/#${urlHash}`
 	};

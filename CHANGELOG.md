@@ -1,5 +1,39 @@
 # rollup changelog
 
+## 3.9.1
+
+_2023-01-02_
+
+### Bug Fixes
+
+- Sort keys in generated dynamic namespace objects (#4780)
+- Do not consider Array.group to be side effect free as the specs have changed (#4779)
+
+### Pull Requests
+
+- [#4777](https://github.com/rollup/rollup/pull/4777): Import from node:fs/promises (@dnalborczyk)
+- [#4778](https://github.com/rollup/rollup/pull/4778): Bump deps (@dnalborczyk)
+- [#4779](https://github.com/rollup/rollup/pull/4779): Remove array grouping (web compat issue) (@dnalborczyk)
+- [#4780](https://github.com/rollup/rollup/pull/4780): Sort namespace object keys (@dnalborczyk)
+- [#4781](https://github.com/rollup/rollup/pull/4781): Use Set and builtin-modules package (@dnalborczyk)
+- [#4782](https://github.com/rollup/rollup/pull/4782): Use more restrictive types (@dnalborczyk)
+
+## 3.9.0
+
+_2022-12-28_
+
+### Features
+
+- Support ES2022 arbitrary module namespace identifiers (#4770)
+- Add optional `version` property to plugin type (#4771)
+
+### Pull Requests
+
+- [#4768](https://github.com/rollup/rollup/pull/4768): Fix small typo in 999-big-list-of-options.md (@ericmutta)
+- [#4769](https://github.com/rollup/rollup/pull/4769): docs: add a instruction about how to run one test on your local computer (@TrickyPi)
+- [#4770](https://github.com/rollup/rollup/pull/4770): Add support for arbitrary module namespace identifiers (@lukastaegert)
+- [#4771](https://github.com/rollup/rollup/pull/4771): Add `version` property to Plugin type (@Septh)
+
 ## 3.8.1
 
 _2022-12-23_

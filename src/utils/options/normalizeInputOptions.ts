@@ -96,9 +96,7 @@ const getOnwarn = (config: InputOptions): NormalizedInputOptions['onwarn'] => {
 };
 
 const getAcorn = (config: InputOptions): acorn.Options => ({
-	allowAwaitOutsideFunction: true,
 	ecmaVersion: 'latest',
-	preserveParens: false,
 	sourceType: 'module',
 	...config.acorn
 });
@@ -208,19 +206,18 @@ const getModuleContext = (
 	config: InputOptions,
 	context: string
 ): NormalizedInputOptions['moduleContext'] => {
-	const configModuleContext = config.moduleContext as
-		| ((id: string) => string | null | undefined)
-		| { [id: string]: string }
-		| undefined;
+	const configModuleContext = config.moduleContext;
 	if (typeof configModuleContext === 'function') {
 		return id => configModuleContext(id) ?? context;
 	}
 	if (configModuleContext) {
-		const contextByModuleId = Object.create(null);
+		const contextByModuleId: {
+			[key: string]: string;
+		} = Object.create(null);
 		for (const [key, moduleContext] of Object.entries(configModuleContext)) {
 			contextByModuleId[resolve(key)] = moduleContext;
 		}
-		return id => contextByModuleId[id] || context;
+		return id => contextByModuleId[id] ?? context;
 	}
 	return () => context;
 };
@@ -281,7 +278,7 @@ const getHasModuleSideEffects = (
 	}
 	if (typeof moduleSideEffectsOption === 'function') {
 		return (id, external) =>
-			!id.startsWith('\0') ? moduleSideEffectsOption(id, external) !== false : true;
+			id.startsWith('\0') ? true : moduleSideEffectsOption(id, external) !== false;
 	}
 	if (Array.isArray(moduleSideEffectsOption)) {
 		const ids = new Set(moduleSideEffectsOption);
