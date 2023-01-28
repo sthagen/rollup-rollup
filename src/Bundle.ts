@@ -24,12 +24,12 @@ import { getGenerateCodeSnippets } from './utils/generateCodeSnippets';
 import type { HashPlaceholderGenerator } from './utils/hashPlaceholders';
 import { getHashPlaceholderGenerator } from './utils/hashPlaceholders';
 import type { OutputBundleWithPlaceholders } from './utils/outputBundle';
-import { getOutputBundle } from './utils/outputBundle';
+import { getOutputBundle, removeUnreferencedAssets } from './utils/outputBundle';
 import { isAbsolute } from './utils/path';
 import { renderChunks } from './utils/renderChunks';
 import { timeEnd, timeStart } from './utils/timers';
 import {
-	URL_OUTPUT_AMD,
+	URL_OUTPUT_AMD_ID,
 	URL_OUTPUT_DIR,
 	URL_OUTPUT_FORMAT,
 	URL_OUTPUT_SOURCEMAPFILE
@@ -84,6 +84,8 @@ export default class Bundle {
 			await this.pluginDriver.hookParallel('renderError', [error_]);
 			throw error_;
 		}
+
+		removeUnreferencedAssets(outputBundle);
 
 		timeStart('generate bundle', 2);
 
@@ -252,7 +254,7 @@ function validateOptionsForMultiChunkOutput(
 		onWarn(
 			errorInvalidOption(
 				'output.amd.id',
-				URL_OUTPUT_AMD,
+				URL_OUTPUT_AMD_ID,
 				'this option is only properly supported for single-file builds. Use "output.amd.autoId" and "output.amd.basePath" instead'
 			)
 		);

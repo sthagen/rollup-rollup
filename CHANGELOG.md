@@ -1,5 +1,41 @@
 # rollup changelog
 
+## 3.12.0
+
+_2023-01-28_
+
+### Features
+
+- Change generated external namespace reexport helper code for CommonJS to better work with NodeJS named export detection (#4826)
+
+### Pull Requests
+
+- [#4825](https://github.com/rollup/rollup/pull/4825): Add and use anchors for nested options (@lukastaegert)
+- [#4826](https://github.com/rollup/rollup/pull/4826): Use old namespace reexport code pattern for better Node support (@lukastaegert)
+
+## 3.11.0
+
+_2023-01-26_
+
+### Features
+
+- Support opt-in tree-shaking for emitted assets based on code references (#4805)
+
+### Bug Fixes
+
+- Adapt documentation references in Rollup to new website (#4807)
+
+### Pull Requests
+
+- [#4805](https://github.com/rollup/rollup/pull/4805): feat: add needsCodeReference field to EmittedAsset (@TrickyPi)
+- [#4807](https://github.com/rollup/rollup/pull/4807): Rewrite website in Vitepress and merge it into the main repository (@lukastaegert)
+- [#4816](https://github.com/rollup/rollup/pull/4816): web-publisher: Update docs/faqs/index.md (@PuruVJ)
+- [#4819](https://github.com/rollup/rollup/pull/4819): Replace fs-extra with built-ins (@dnalborczyk)
+- [#4820](https://github.com/rollup/rollup/pull/4820): Introduce timeout-minutes in Github actions ci (@dnalborczyk)
+- [#4822](https://github.com/rollup/rollup/pull/4822): Tweak document landing page (@sapphi-red)
+- [#4823](https://github.com/rollup/rollup/pull/4823): Minor migration guide improvements (@sapphi-red)
+- [#4824](https://github.com/rollup/rollup/pull/4824): Add most options to the REPL (@lukastaegert)
+
 ## 3.10.1
 
 _2023-01-20_
