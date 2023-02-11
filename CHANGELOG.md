@@ -1,5 +1,67 @@
 # rollup changelog
 
+## 3.15.0
+
+_2023-02-10_
+
+### Features
+
+- Do not consider instantiating a constructor a side effect if it adds properties to "this" and is instantiated elsewhere (#4842)
+
+### Bug Fixes
+
+- Improve side effect detection in constructors (#4842)
+
+### Pull Requests
+
+- [#4842](https://github.com/rollup/rollup/pull/4842): fix: add this option to context.ignore (@TrickyPi)
+- [#4843](https://github.com/rollup/rollup/pull/4843): fixed the logo link (@oMatheuss)
+- [#4844](https://github.com/rollup/rollup/pull/4844): Update index.md (@cunzaizhuyi)
+- [#4845](https://github.com/rollup/rollup/pull/4845): docs: fix style (@TrickyPi)
+
+## 3.14.0
+
+_2023-02-05_
+
+### Features
+
+- Add `experimentalDeepDynamicChunkOptimization` option to produce fewer chunks from dynamic imports (#4837)
+
+### Pull Requests
+
+- [#4837](https://github.com/rollup/rollup/pull/4837): Add flag to re-enable deep dynamic chunk optimization (@lukastaegert)
+- [#4839](https://github.com/rollup/rollup/pull/4839): fix: correct incorrect assertions (@TrickyPi)
+
+## 3.13.0
+
+_2023-02-03_
+
+### Features
+
+- Prevent chunk cycles when using `experimentalMinChunkSize` (#4723)
+
+### Pull Requests
+
+- [#4723](https://github.com/rollup/rollup/pull/4723): Improve minChunkSize algorithm (@lukastaegert)
+- [#4833](https://github.com/rollup/rollup/pull/4833): docs: Fix typo (@mturoci)
+- [#4835](https://github.com/rollup/rollup/pull/4835): Tables in docs (@lukastaegert)
+
+## 3.12.1
+
+_2023-02-01_
+
+### Bug Fixes
+
+- Handle self-references in class static blocks and construtors when the class is renamed (#4827)
+- Improve warnings when creating circular chunks taht reexport variables (#4829)
+
+### Pull Requests
+
+- [#4827](https://github.com/rollup/rollup/pull/4827): fix: use the original class name in the class body (@TrickyPi)
+- [#4829](https://github.com/rollup/rollup/pull/4829): Improve and fix cross-chunk-reexport warning (@lukastaegert)
+- [#4830](https://github.com/rollup/rollup/pull/4830): Add Algolia doc search (@lukastaegert)
+- [#4831](https://github.com/rollup/rollup/pull/4831): Add warning not to add assets directly to the bundle (@lukastaegert)
+
 ## 3.12.0
 
 _2023-01-28_
