@@ -1,6 +1,6 @@
 {
   "name": "rollup",
-  "version": "3.17.0",
+  "version": "3.17.2",
   "description": "Next-generation ES module bundler",
   "main": "dist/rollup.js",
   "module": "dist/es/rollup.js",
@@ -162,7 +162,11 @@
       "require": "./dist/rollup.js",
       "import": "./dist/es/rollup.js"
     },
-    "./loadConfigFile": "./dist/loadConfigFile.js",
+    "./loadConfigFile": {
+      "types": "./dist/loadConfigFile.d.ts",
+      "require": "./dist/loadConfigFile.js",
+      "default": "./dist/loadConfigFile.js"
+    },
     "./dist/*": "./dist/*"
   }
 }
