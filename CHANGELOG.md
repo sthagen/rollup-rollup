@@ -1,5 +1,36 @@
 # rollup changelog
 
+## 3.18.0
+
+_2023-03-01_
+
+### Features
+
+- Add `experimentalLogSideEffects` to log the first detected side effect in every module (#4871)
+- Ignore-list sourcemaps of files inside node_modules by default (#4877)
+
+### Pull Requests
+
+- [#4871](https://github.com/rollup/rollup/pull/4871): Add experimental logging for side effects (@lukastaegert)
+- [#4877](https://github.com/rollup/rollup/pull/4877): feat: mark files in a `node_modules` as ignore-listed by default (@bmeurer)
+- [#4880](https://github.com/rollup/rollup/pull/4880): build: use @rollup/plugin-replace to replace chokidar fsevents (@dnalborczyk)
+- [#4887](https://github.com/rollup/rollup/pull/4887): Refactor (@dnalborczyk)
+
+## 3.17.3
+
+_2023-02-25_
+
+### Bug Fixes
+
+- Handle non-URL-safe characters when poly-filling import.meta.url (#4875)
+
+### Pull Requests
+
+- [#4870](https://github.com/rollup/rollup/pull/4870): fix: style optimization in dark mode (@huodoushigemi)
+- [#4875](https://github.com/rollup/rollup/pull/4875): Fix transformation of `import.meta.url` in CommonJS (@fasttime)
+- [#4876](https://github.com/rollup/rollup/pull/4876): fix: wrong params of the transform hook (@ZzqiZQute)
+- [#4878](https://github.com/rollup/rollup/pull/4878): Improve test stability (@lukastaegert)
+
 ## 3.17.2
 
 _2023-02-20_
