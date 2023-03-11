@@ -1,5 +1,32 @@
 # rollup changelog
 
+## 3.19.1
+
+_2023-03-10_
+
+### Bug Fixes
+
+- Produce valid code when the first statement in aclass static block is tree-shaken (#4898)
+
+### Pull Requests
+
+- [#4898](https://github.com/rollup/rollup/pull/4898): fix: set a correct node location for static blocks (@TrickyPi)
+- [#4900](https://github.com/rollup/rollup/pull/4900): docs: fix table at `output.sanitizeFileName` section (@0x009922)
+
+## 3.19.0
+
+_2023-03-09_
+
+### Features
+
+- Make reassignment tracking of call parameters more specific to no lose information when an object is passed to a function (#4892)
+
+### Pull Requests
+
+- [#4890](https://github.com/rollup/rollup/pull/4890): Fix `npm run dev` (@lukastaegert)
+- [#4892](https://github.com/rollup/rollup/pull/4892): Only selectively deoptimize call parameters (@lukastaegert)
+- [#4897](https://github.com/rollup/rollup/pull/4897): Pre-render mermaid graphs on website (@lukastaegert)
+
 ## 3.18.0
 
 _2023-03-01_
