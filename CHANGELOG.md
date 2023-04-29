@@ -1,5 +1,32 @@
 # rollup changelog
 
+## 3.21.1
+
+_2023-04-29_
+
+### Bug Fixes
+
+- Make sure call arguments are properly deoptimized when a function uses the `arguments` variable (#4965)
+
+### Pull Requests
+
+- [#4957](https://github.com/rollup/rollup/pull/4957): Update dependencies (@lukastaegert)
+- [#4964](https://github.com/rollup/rollup/pull/4964): Fix REPL in dev (@lukastaegert)
+- [#4965](https://github.com/rollup/rollup/pull/4965): Ensure arguments are deoptimized when arguments variable is used (@lukastaegert)
+- [#4967](https://github.com/rollup/rollup/pull/4967): Log REPL output to console (@lukastaegert)
+
+## 3.21.0
+
+_2023-04-23_
+
+### Features
+
+- Support tree-shaking of named exports in dynamic imports when using destructuring and similar patterns (#4952)
+
+### Pull Requests
+
+- [#4952](https://github.com/rollup/rollup/pull/4952): feat: tree-shake deterministic dynamic imports (@antfu)
+
 ## 3.20.7
 
 _2023-04-21_
