@@ -1,5 +1,57 @@
 # rollup changelog
 
+## 3.21.5
+
+_2023-05-05_
+
+### Bug Fixes
+
+- Keep all consecutive lines at the top of each module that start with a comment (#4975)
+- Ensure that declarations inside switch cases do not use the same scope as the discriminator (#4979)
+
+### Pull Requests
+
+- [#4975](https://github.com/rollup/rollup/pull/4975): Keep leading comments on consecutive lines (@lukastaegert)
+- [#4979](https://github.com/rollup/rollup/pull/4979): Use correct scope in switch statements (@lukastaegert)
+
+## 3.21.4
+
+_2023-05-03_
+
+### Bug Fixes
+
+- Resolve crash when shimming a missing export in an otherwise non-included module when preserving modules (#4971)
+
+### Pull Requests
+
+- [#4971](https://github.com/rollup/rollup/pull/4971): Handle shimming missing exports when preserving modules (@lukastaegert)
+- [#4972](https://github.com/rollup/rollup/pull/4972): Configure Renovate (@renovate[bot])
+
+## 3.21.3
+
+_2023-05-02_
+
+### Bug Fixes
+
+- Run `process.exit()` when Rollup CLI finishes successfully to solve issues on some systems (#4969)
+
+### Pull Requests
+
+- [#4954](https://github.com/rollup/rollup/pull/4954): test: enable typecheck for \_config files (@antfu)
+- [#4969](https://github.com/rollup/rollup/pull/4969): Automatically force close Rollup when done (@lukastaegert)
+
+## 3.21.2
+
+_2023-04-30_
+
+### Bug Fixes
+
+- Mark global functions that trigger iterators as impure for now (#4955)
+
+### Pull Requests
+
+- [#4955](https://github.com/rollup/rollup/pull/4955): fix: mark some known globals or their functions as impure (@TrickyPi)
+
 ## 3.21.1
 
 _2023-04-29_
