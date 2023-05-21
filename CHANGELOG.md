@@ -1,5 +1,35 @@
 # rollup changelog
 
+## 3.22.0
+
+_2023-05-17_
+
+### Features
+
+- Prevent empty non-facade chunks by merging them into other suitable chunks (#4989)
+- Avoid facade chunks in some situations involving reexports (#4989)
+- Improve algorithm for best merge target when using `experimentalMinChunkSize` to take tree-shaking into account (#4989)
+
+### Bug Fixes
+
+- Take side effects of external dependencies into account when merging chunks for `experimentalMinChunkSize` (#4989)
+
+### Pull Requests
+
+- [#4989](https://github.com/rollup/rollup/pull/4989): Prevent empty chunks and thoroughly improve experimentalMinChunkSize (@lukastaegert)
+
+## 3.21.8
+
+_2023-05-16_
+
+### Bug Fixes
+
+- Allow a namespace to properly contain itself as a named export (#4991)
+
+### Pull Requests
+
+- [#4991](https://github.com/rollup/rollup/pull/4991): Handle self-referencing namespaces (@lukastaegert)
+
 ## 3.21.7
 
 _2023-05-13_
