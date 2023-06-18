@@ -1,5 +1,33 @@
 # rollup changelog
 
+## 3.25.1
+
+_2023-06-12_
+
+### Bug Fixes
+
+- Respect `__NO_SIDE_EFFECTS__` for async functions (#5031)
+
+### Pull Requests
+
+- [#5031](https://github.com/rollup/rollup/pull/5031): fix: `__NO_SIDE_EFFECTS__` annotation for async function (@antfu)
+
+## 3.25.0
+
+_2023-06-11_
+
+### Features
+
+- Add `this.info` and `this.debug` plugin context logging functions (#5026)
+- Add `onLog` option to read, map and filter logs (#5026)
+- Add `logLevel` option to fully suppress logs by level (#5026)
+- Support function logs in `this.warn`, `this.info` and `this.debug` to avoid heavy computations based on log level (#5026)
+- Add `onLog` plugin hook to read, filter and map logs from plugins (#5026)
+
+### Pull Requests
+
+- [#5026](https://github.com/rollup/rollup/pull/5026): Add Logging API (@lukastaegert)
+
 ## 3.24.1
 
 _2023-06-10_
