@@ -1,5 +1,47 @@
 # rollup changelog
 
+## 3.26.0
+
+_2023-06-30_
+
+### Features
+
+- Add `--filterLogs` CLI flag and `ROLLUP_FILTER_LOGS` environment variable for log filtering (#5035)
+
+### Pull Requests
+
+- [#5035](https://github.com/rollup/rollup/pull/5035): Add ability to filter logs via CLI option or environment variable (@lukastaegert)
+- [#5049](https://github.com/rollup/rollup/pull/5049): chore(deps): lock file maintenance minor/patch updates (@renovate[bot])
+
+## 3.25.3
+
+_2023-06-26_
+
+### Bug Fixes
+
+- Fix error when inlining dynamic imports that contain unused reexported variables (#5047)
+
+### Pull Requests
+
+- [#5047](https://github.com/rollup/rollup/pull/5047): Do not add tree-shaken variables to namespaces when inlining dynamic imports (@lukastaegert)
+
+## 3.25.2
+
+_2023-06-24_
+
+### Bug Fixes
+
+- Handle plugin errors where `code` is not a string (#5042)
+- Use current transformed source when generating code frames with positions in transform hooks (#5045)
+
+### Pull Requests
+
+- [#5038](https://github.com/rollup/rollup/pull/5038): chore(deps): lock file maintenance minor/patch updates (@renovate[bot])
+- [#5040](https://github.com/rollup/rollup/pull/5040): Fix typo in index.md (@vHeemstra)
+- [#5042](https://github.com/rollup/rollup/pull/5042): fix: a plugin error can contains numeric code (@TrickyPi)
+- [#5045](https://github.com/rollup/rollup/pull/5045): Fix `this.error` with `pos` in `transform` hook (@sapphi-red)
+- [#5046](https://github.com/rollup/rollup/pull/5046): chore(deps): update dependency locate-character to v3 (@renovate[bot])
+
 ## 3.25.1
 
 _2023-06-12_
