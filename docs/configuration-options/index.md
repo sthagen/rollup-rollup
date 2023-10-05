@@ -678,15 +678,15 @@ This pattern will also be used for every file when setting the [`output.preserve
 
 Whether to extend the global variable defined by the `name` option in `umd` or `iife` formats. When `true`, the global variable will be defined as `(global.name = global.name || {})`. When false, the global defined by `name` will be overwritten like `(global.name = {})`.
 
-### output.externalImportAssertions
+### output.externalImportAttributes
 
 |          |                                                              |
 | -------: | :----------------------------------------------------------- |
 |    Type: | `boolean`                                                    |
-|     CLI: | `--externalImportAssertions`/`--no-externalImportAssertions` |
+|     CLI: | `--externalImportAttributes`/`--no-externalImportAttributes` |
 | Default: | `true`                                                       |
 
-Whether to add import assertions to external imports in the output if the output format is `es`. By default, assertions are taken from the input files, but plugins can add or remove assertions later. E.g. `import "foo" assert {type: "json"}` will cause the same import to appear in the output unless the option is set to `false`. Note that all imports of a module need to have consistent assertions, otherwise a warning is emitted.
+Whether to add import attributes to external imports in the output if the output format is `es`. By default, attributes are taken from the input files, but plugins can add or remove attributes later. E.g. `import "foo" assert {type: "json"}` will cause the same import to appear in the output unless the option is set to `false`. Note that all imports of a module need to have consistent attributes, otherwise a warning is emitted.
 
 ### output.generatedCode
 
@@ -1653,33 +1653,6 @@ This flag is intended to be used by e.g. plugin authors to be able to adjust the
 
 You probably don't need to use these options unless you know what you are doing!
 
-### acorn
-
-|       |                |
-| ----: | :------------- |
-| Type: | `AcornOptions` |
-
-Any options that should be passed through to Acorn's `parse` function, such as `allowReserved: true`. Cf. the [Acorn documentation](https://github.com/acornjs/acorn/tree/master/acorn#interface) for more available options.
-
-### acornInjectPlugins
-
-|       |                                                |
-| ----: | :--------------------------------------------- |
-| Type: | `AcornPluginFunction \| AcornPluginFunction[]` |
-
-A single plugin or an array of plugins to be injected into Acorn. For instance to use JSX syntax, you can specify
-
-```javascript
-import jsx from 'acorn-jsx';
-
-export default {
-	// … other options …
-	acornInjectPlugins: [jsx()]
-};
-```
-
-in your rollup configuration. Note that this is different from using Babel in that the generated output will still contain JSX while Babel will replace it with valid JavaScript.
-
 ### context
 
 |          |                               |
@@ -2109,8 +2082,12 @@ class Impure {
 	}
 }
 
-/*@__PURE__*/ new Impure();
+/*@__PURE__ There may be additional text in the comment */ new Impure();
 ```
+
+Such an annotation is considered _valid_ if it directly precedes a function call or constructor invocation and is only separated from the callee by white-space or comments. The only exception are parentheses that wrap a call or invocation.
+
+Invalid annotations are removed and Rollup emits a warning. Valid annotations remain in the code unless their function call or constructor invocation is removed as well.
 
 ##### `@__NO_SIDE_EFFECTS__`
 
@@ -2130,6 +2107,10 @@ const impureArrowFn = () => {
 impure(); // <-- call will be considered as side effect free
 impureArrowFn(); // <-- call will be considered as side effect free
 ```
+
+Such an annotation is considered _valid_ if it directly precedes a function declaration or a constant variable declaration where the first declared variable is a function and is only separated from the declaration by white-space or comments.
+
+Invalid annotations are removed and Rollup emits a warning. Valid annotations remain in the code unless their declaration is removed as well
 
 #### treeshake.correctVarValueBeforeDeclaration
 
@@ -2583,81 +2564,14 @@ Whether to skip the `bundle.write()` step when a rebuild is triggered.
 
 ☢️ These options have been deprecated and may be removed in a future Rollup version.
 
-### inlineDynamicImports
+### output.externalImportAssertions
 
-_Use the [`output.inlineDynamicImports`](#output-inlinedynamicimports) output option instead, which has the same signature._
+_Use the [`output.externalImportAttributes`](#output-externalimportattributes) option instead._
 
-### manualChunks
+|          |                                                              |
+| -------: | :----------------------------------------------------------- |
+|    Type: | `boolean`                                                    |
+|     CLI: | `--externalImportAssertions`/`--no-externalImportAssertions` |
+| Default: | `true`                                                       |
 
-_Use the [`output.manualChunks`](#output-manualchunks) output option instead, which has the same signature._
-
-### maxParallelFileReads
-
-_Use the [`maxParallelFileOps`](#maxparallelfileops) option instead._
-
-|          |                                   |
-| -------: | :-------------------------------- |
-|    Type: | `number`                          |
-|     CLI: | `--maxParallelFileReads <number>` |
-| Default: | 20                                |
-
-Limits the number of files rollup will open in parallel when reading modules. Without a limit or with a high enough value, builds can fail with an "EMFILE: too many open files". This depends on how many open file handles the os allows.
-
-### output.dynamicImportFunction
-
-_Use the [`renderDynamicImport`](../plugin-development/index.md#renderdynamicimport) plugin hook instead._
-
-|          |                                  |
-| -------: | :------------------------------- |
-|    Type: | `string`                         |
-|     CLI: | `--dynamicImportFunction <name>` |
-| Default: | `import`                         |
-
-This will rename the dynamic import function to the chosen name when outputting ES bundles. This is useful for generating code that uses a dynamic import polyfill such as [this one](https://github.com/uupaa/dynamic-import-polyfill).
-
-### output.experimentalDeepDynamicChunkOptimization
-
-_This option is no longer needed._
-
-|  |  |
-| --: | :-- |
-| Type: | `boolean` |
-| CLI: | `--experimentalDeepDynamicChunkOptimization`/`--no-experimentalDeepDynamicChunkOptimization` |
-| Default: | `false` |
-
-This option was used to prevent performance issues with the full chunk optimization algorithm. As the algorithm is much faster now, this option is now ignored by Rollup and should no longer be used.
-
-### output.preferConst
-
-_Use the [`output.generatedCode.constBindings`](#output-generatedcode-constbindings) option instead._
-
-|          |                                    |
-| -------: | :--------------------------------- |
-|    Type: | `boolean`                          |
-|     CLI: | `--preferConst`/`--no-preferConst` |
-| Default: | `false`                            |
-
-Generate `const` declarations for exports rather than `var` declarations.
-
-### output.namespaceToStringTag
-
-_Use [`output.generatedCode.symbols`](#output-generatedcode-symbols) instead._
-
-|          |                                                      |
-| -------: | :--------------------------------------------------- |
-|    Type: | `boolean`                                            |
-|     CLI: | `--namespaceToStringTag`/`--no-namespaceToStringTag` |
-| Default: | `false`                                              |
-
-Whether to add spec compliant `.toString()` tags to namespace objects. If this option is set,
-
-```javascript
-import * as namespace from './file.js';
-console.log(String(namespace));
-```
-
-will always log `[object Module]`;
-
-### preserveModules
-
-_Use the [`output.preserveModules`](#output-preservemodules) output option instead, which has the same signature._
+Whether to add import assertions to external imports in the output if the output format is `es`. By default, assertions are taken from the input files, but plugins can add or remove assertions later. E.g. `import "foo" assert {type: "json"}` will cause the same import to appear in the output unless the option is set to `false`. Note that all imports of a module need to have consistent assertions, otherwise a warning is emitted.

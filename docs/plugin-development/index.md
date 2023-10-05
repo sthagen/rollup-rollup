@@ -311,7 +311,7 @@ interface SourceDescription {
 }
 ```
 
-Defines a custom loader. Returning `null` defers to other `load` functions (and eventually the default behavior of loading from the file system). To prevent additional parsing overhead in case e.g. this hook already used `this.parse` to generate an AST for some reason, this hook can optionally return a `{ code, ast, map }` object. The `ast` must be a standard ESTree AST with `start` and `end` properties for each node. If the transformation does not move code, you can preserve existing sourcemaps by setting `map` to `null`. Otherwise, you might need to generate the source map. See the section on [source code transformations](#source-code-transformations).
+Defines a custom loader. Returning `null` defers to other `load` functions (and eventually the default behavior of loading from the file system). To prevent additional parsing overhead in case e.g. this hook already used [`this.parse`](#this-parse) to generate an AST for some reason, this hook can optionally return a `{ code, ast, map }` object. The `ast` must be a standard ESTree AST with `start` and `end` properties for each node. If the transformation does not move code, you can preserve existing sourcemaps by setting `map` to `null`. Otherwise, you might need to generate the source map. See the section on [source code transformations](#source-code-transformations).
 
 If `false` is returned for `moduleSideEffects` and no other module imports anything from this module, then this module will not be included in the bundle even if the module would have side effects. If `true` is returned, Rollup will use its default algorithm to include all statements in the module that have side effects (such as modifying a global or exported variable). If `"no-treeshake"` is returned, treeshaking will be turned off for this module and it will also be included in one of the generated chunks even if it is empty. If `null` is returned or the flag is omitted, then `moduleSideEffects` will be determined by the first `resolveId` hook that resolved this module, the [`treeshake.moduleSideEffects`](../configuration-options/index.md#treeshake-modulesideeffects) option, or eventually default to `true`. The `transform` hook can override this.
 
@@ -417,7 +417,7 @@ Like the [`onLog`](#onlog) hook, this hook does not have access to most [plugin 
 
 ```typescript
 type ResolveDynamicImportHook = (
-	specifier: string | AcornNode,
+	specifier: string | AstNode,
 	importer: string,
 	options: { assertions: Record<string, string> }
 ) => ResolveIdResult;
@@ -508,12 +508,8 @@ function injectPolyfillPlugin() {
 				return { id: POLYFILL_ID, moduleSideEffects: true };
 			}
 			if (options.isEntry) {
-				// Determine what the actual entry would have been. We need
-				// "skipSelf" to avoid an infinite loop.
-				const resolution = await this.resolve(source, importer, {
-					skipSelf: true,
-					...options
-				});
+				// Determine what the actual entry would have been.
+				const resolution = await this.resolve(source, importer, options);
 				// If it cannot be resolved or is external, just return it
 				// so that Rollup can display an error
 				if (!resolution || resolution.external) return resolution;
@@ -613,7 +609,7 @@ In watch mode or when using the cache explicitly, the resolved imports of a cach
 
 ```typescript
 type ShouldTransformCachedModuleHook = (options: {
-	ast: AcornNode;
+	ast: AstNode;
 	code: string;
 	id: string;
 	meta: { [plugin: string]: any };
@@ -651,7 +647,7 @@ interface SourceDescription {
 }
 ```
 
-Can be used to transform individual modules. To prevent additional parsing overhead in case e.g. this hook already used `this.parse` to generate an AST for some reason, this hook can optionally return a `{ code, ast, map }` object. The `ast` must be a standard ESTree AST with `start` and `end` properties for each node. If the transformation does not move code, you can preserve existing sourcemaps by setting `map` to `null`. Otherwise, you might need to generate the source map. See [the section on source code transformations](#source-code-transformations).
+Can be used to transform individual modules. To prevent additional parsing overhead in case e.g. this hook already used [`this.parse`](#this-parse) to generate an AST for some reason, this hook can optionally return a `{ code, ast, map }` object. The `ast` must be a standard ESTree AST with `start` and `end` properties for each node. If the transformation does not move code, you can preserve existing sourcemaps by setting `map` to `null`. Otherwise, you might need to generate the source map. See [the section on source code transformations](#source-code-transformations).
 
 Note that in watch mode or when using the cache explicitly, the result of this hook is cached when rebuilding and the hook is only triggered again for a module `id` if either the `code` of the module has changed or a file has changed that was added via `this.addWatchFile` the last time the hook was triggered for this module.
 
@@ -1536,10 +1532,7 @@ export default function addProxyPlugin() {
 			}
 			// We make sure to pass on any resolveId options to
 			// this.resolve to get the module id
-			const resolution = await this.resolve(source, importer, {
-				skipSelf: true,
-				...options
-			});
+			const resolution = await this.resolve(source, importer, options);
 			// We can only pre-load existing and non-external ids
 			if (resolution && !resolution.external) {
 				// we pass on the entire resolution information
@@ -1666,11 +1659,19 @@ An object containing potentially useful Rollup metadata:
 
 ### this.parse
 
-|       |                                                                 |
-| ----: | :-------------------------------------------------------------- |
-| Type: | `(code: string, acornOptions?: AcornOptions) => ESTree.Program` |
+|       |                                                            |
+| ----: | :--------------------------------------------------------- |
+| Type: | `(code: string, options?: ParseOptions) => ESTree.Program` |
 
-Use Rollup's internal acorn instance to parse code to an AST.
+```typescript
+interface ParseOptions {
+	allowReturnOutsideFunction?: boolean;
+}
+```
+
+Use Rollup's internal SWC-based parser to parse code to an [ESTree-compatible](https://github.com/estree/estree) AST.
+
+- `allowReturnOutsideFunction`: When `true` this allows return statements to be outside functions to e.g. support parsing CommonJS code.
 
 ### this.resolve
 
@@ -1699,7 +1700,7 @@ The return type **ResolvedId** of this hook is defined in [`this.getModuleInfo`]
 
 Resolve imports to module ids (i.e. file names) using the same plugins that Rollup uses, and determine if an import should be external. If `null` is returned, the import could not be resolved by Rollup or any plugin but was not explicitly marked as external by the user. If an absolute external id is returned that should remain absolute in the output either via the [`makeAbsoluteExternalsRelative`](../configuration-options/index.md#makeabsoluteexternalsrelative) option or by explicit plugin choice in the [`resolveId`](#resolveid) hook, `external` will be `"absolute"` instead of `true`.
 
-If you pass `skipSelf: true`, then the `resolveId` hook of the plugin from which `this.resolve` is called will be skipped when resolving. When other plugins themselves also call `this.resolve` in their `resolveId` hooks with the _exact same `source` and `importer`_ while handling the original `this.resolve` call, then the `resolveId` hook of the original plugin will be skipped for those calls as well. The rationale here is that the plugin already stated that it "does not know" how to resolve this particular combination of `source` and `importer` at this point in time. If you do not want this behaviour, do not use `skipSelf` but implement your own infinite loop prevention mechanism if necessary.
+The default of `skipSelf` is `true`, So the `resolveId` hook of the plugin from which `this.resolve` is called will be skipped when resolving. When other plugins themselves also call `this.resolve` in their `resolveId` hooks with the _exact same `source` and `importer`_ while handling the original `this.resolve` call, then the `resolveId` hook of the original plugin will be skipped for those calls as well. The rationale here is that the plugin already stated that it "does not know" how to resolve this particular combination of `source` and `importer` at this point in time. If you do not want this behaviour, set `skipSelf` to `false` and implement your own infinite loop prevention mechanism if necessary.
 
 You can also pass an object of plugin-specific options via the `custom` option, see [custom resolver options](#custom-resolver-options) for details.
 
@@ -1753,20 +1754,6 @@ this.debug(() => generateExpensiveDebugLog());
 When used in the `transform` hook, the `id` of the current module will also be added and a `position` can be supplied. This is a character index or file location which will be used to augment the log with `pos`, `loc` (a standard `{ file, line, column }` object) and `frame` (a snippet of code showing the location).
 
 If the [`logLevel`](../configuration-options/index.md#loglevel) option is set to `"silent"`, this method will do nothing.
-
-## Deprecated Context Functions
-
-☢️ These context utility functions have been deprecated and may be removed in a future Rollup version.
-
-- `this.moduleIds: IterableIterator<string>` - _**Use [`this.getModuleIds`](#this-getmoduleids)**_ - An `Iterator` that gives access to all module ids in the current graph. It can be iterated via
-
-  ```js
-  for (const moduleId of this.moduleIds) {
-  	/* ... */
-  }
-  ```
-
-  or converted into an Array via `Array.from(this.moduleIds)`.
 
 ## File URLs
 
