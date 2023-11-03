@@ -143,8 +143,13 @@ async function loadConfigFromWrittenFile(
 	try {
 		return (await import(pathToFileURL(bundledFileName).href)).default;
 	} finally {
-		// Not awaiting here saves some ms while potentially hiding a non-critical error
-		unlink(bundledFileName);
+		try {
+			await unlink(bundledFileName);
+		} catch (error: unknown) {
+			if (error instanceof Error) {
+				console.warn(error.message);
+			}
+		}
 	}
 }
 
